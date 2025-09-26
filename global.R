@@ -91,19 +91,15 @@ load("app_data/plots.Rdata")
 
 # Spatial files for maps ----
 commonwealth.mp <- readRDS("app_data/spatial/commonwealth.mp.RDS")
-state.mp <- readRDS("app_data/spatial/state.mp.RDS")
-ngari.mp <- readRDS("app_data/spatial/ngari.mp.RDS")
-
-ngari.mp <- st_as_sf(ngari.mp)
-ngari.mp <- st_cast(ngari.mp, "POLYGON")
+# state.mp <- readRDS("app_data/spatial/state.mp.RDS")
 
 # Pallettes for maps ----
-state.pal <- colorFactor(c("#bfaf02", # conservation
-                           "#7bbc63", # sanctuary = National Park
-                           "#fdb930", # recreation
-                           "#b9e6fb", # general use
-                           '#ccc1d6' # special purpose
-), state.mp$zone)
+# state.pal <- colorFactor(c("#bfaf02", # conservation
+#                            "#7bbc63", # sanctuary = National Park
+#                            "#fdb930", # recreation
+#                            "#b9e6fb", # general use
+#                            '#ccc1d6' # special purpose
+# ), state.mp$zone)
 
 commonwealth.pal <- colorFactor(c("#f6c1d9", # Sanctuary
                                   "#7bbc63", # National Park

@@ -1,6 +1,6 @@
 page_navbar(
   title = div(
-    "Australian BRUV Synthesis",
+    "DEW SA Dashboard",
     favicon = "www/favicon.ico",  # path to your favicon
     style = "flex-grow: 1;"  # This pushes the rest of the nav content (like links/logos) to the right
   ),
@@ -24,7 +24,7 @@ page_navbar(
   
   # Dashboard ----
   nav_panel(
-    "Dashboard",
+    "Statewide",
     tags$head(
       tags$style(HTML("
                .leaflet-container {z-index:0}
@@ -37,6 +37,8 @@ page_navbar(
     z-index: 10000000000 !important;
 }"))
     ),
+
+h3("State-wide Summary"),
     
     # Top Row - Four Value Boxes
     layout_column_wrap(
@@ -252,18 +254,18 @@ page_navbar(
   ),
 
 # nav_spacer(),
-nav_item(
-  a("The Fish Collective", href = "https://fishcollective.github.io/", target = "_blank", class = "nav-link")
-),
+# nav_item(
+#   a("The Fish Collective", href = "https://fishcollective.github.io/", target = "_blank", class = "nav-link")
+# ),
 
 # Add logos to the top right corner
-nav_item(
-  tags$div(
-    style = "display: flex; gap: 10px; align-items: center; padding-right: 15px;",
-    tags$img(src = "Fish Collective_White Cropped.png", height = "40px"),
-    tags$img(src = "mac-logo-white-cropped.png", height = "40px"),  
-    tags$img(src = "ardc.png", height = "40px")
-
-  )
-),
+# nav_item(
+#   tags$div(
+#     style = "display: flex; gap: 10px; align-items: center; padding-right: 15px;",
+#     tags$img(src = "Fish Collective_White Cropped.png", height = "40px"),
+#     tags$img(src = "mac-logo-white-cropped.png", height = "40px"),  
+#     tags$img(src = "ardc.png", height = "40px")
+# 
+#   )
+# ),
 )

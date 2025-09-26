@@ -6,43 +6,35 @@ server <- function(input, output) {
       setView(lng = values$mean_lon, lat = values$mean_lat, zoom = 4) %>%
       
       # Static polygon layers
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black", 
-                            weight = 1,
-                            fillColor = ~state.pal(zone), 
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$COMMENTS) %>%
+      # leafgl::addGlPolygons(data = state.mp,
+      #                       color = "black", 
+      #                       weight = 1,
+      #                       fillColor = ~state.pal(zone), 
+      #                       fillOpacity = 0.8,
+      #                       group = "State Marine Parks",
+      #                       popup = state.mp$COMMENTS) %>%
       
       leafgl::addGlPolygons(data = commonwealth.mp,
-                            color = "black", 
+                            color = "black",
                             weight = 1,
-                            fillColor = ~commonwealth.pal(zone), 
+                            fillColor = ~commonwealth.pal(zone),
                             fillOpacity = 0.8,
                             group = "Australian Marine Parks",
                             popup = commonwealth.mp$ZoneName) %>%
-      
-      leafgl::addGlPolygons(data = ngari.mp,
-                            color = "black", 
-                            weight = 1,
-                            fillColor = "#7bbc63", 
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = ngari.mp$Name) %>%
-      
+
       # Legends
-      addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
-                title="State Zones", position = "bottomright", group = "State Marine Parks") %>%
-      
+      # addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
+      #           title="State Zones", position = "bottomright", group = "State Marine Parks") %>%
+
       addLegend(pal = commonwealth.pal, values = commonwealth.mp$zone, opacity = 1,
                 title="Australian Marine Park Zones", position = "bottomright", group = "Australian Marine Parks") %>%
-      
+
       addLayersControl(
         overlayGroups = c("Australian Marine Parks", "State Marine Parks", "Sampling locations"),
         options = layersControlOptions(collapsed = FALSE),
         position = "topright"
       ) %>%
-      hideGroup("State Marine Parks") %>%
+      # hideGroup("State Marine Parks") %>%
       hideGroup("Australian Marine Parks")
   })
   
@@ -153,14 +145,6 @@ server <- function(input, output) {
   #       opacity = 1, group = "Sampling locations"
   #     ) %>%
   #     
-  #     leafgl::addGlPolygons(data = ngari.mp,
-  #                           color = "black", 
-  #                           weight = 1,
-  #                           fillColor = "#7bbc63", 
-  #                           fillOpacity = 0.8,
-  #                           group = "State Marine Parks",
-  #                           popup = ngari.mp$Name) %>%
-  #     
   #     addLayersControl(
   #       overlayGroups = c("Australian Marine Parks",
   #                         "State Marine Parks",
@@ -198,27 +182,19 @@ server <- function(input, output) {
       
       setView(lng = values$mean_lon, lat = values$mean_lat, zoom = 4) %>%
       
-      leafgl::addGlPolygons(data = ngari.mp,
-                            color = "black", 
-                            weight = 1,
-                            fillColor = "#7bbc63", 
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = ngari.mp$Name) %>%
-      
       # State Marine Parks
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black", 
-                            weight = 1,
-                            fillColor = ~state.pal(zone), 
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$COMMENTS) %>%
+      # leafgl::addGlPolygons(data = state.mp,
+      #                       color = "black", 
+      #                       weight = 1,
+      #                       fillColor = ~state.pal(zone), 
+      #                       fillOpacity = 0.8,
+      #                       group = "State Marine Parks",
+      #                       popup = state.mp$COMMENTS) %>%
       
       # Add a legend
-      addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
-                title="State Zones",
-                position = "bottomright", group = "State Marine Parks") %>%
+      # addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
+      #           title="State Zones",
+      #           position = "bottomright", group = "State Marine Parks") %>%
       
       # Commonwealth Marine Parks
       leafgl::addGlPolygons(data = commonwealth.mp,
@@ -302,27 +278,19 @@ server <- function(input, output) {
       
       setView(lng = values$mean_lon, lat = values$mean_lat, zoom = 4) %>%
       
-      leafgl::addGlPolygons(data = ngari.mp,
-                            color = "black", 
-                            weight = 1,
-                            fillColor = "#7bbc63", 
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = ngari.mp$Name) %>%
-      
       # State Marine Parks
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black", 
-                            weight = 1,
-                            fillColor = ~state.pal(zone), 
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$COMMENTS) %>%
+      # leafgl::addGlPolygons(data = state.mp,
+      #                       color = "black", 
+      #                       weight = 1,
+      #                       fillColor = ~state.pal(zone), 
+      #                       fillOpacity = 0.8,
+      #                       group = "State Marine Parks",
+      #                       popup = state.mp$COMMENTS) %>%
       
       # Add a legend
-      addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
-                title="State Zones",
-                position = "bottomright", group = "State Marine Parks") %>%
+      # addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
+      #           title="State Zones",
+      #           position = "bottomright", group = "State Marine Parks") %>%
       
       # Commonwealth Marine Parks
       leafgl::addGlPolygons(data = commonwealth.mp,

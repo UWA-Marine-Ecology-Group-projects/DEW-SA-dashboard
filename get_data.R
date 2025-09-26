@@ -19,6 +19,36 @@ library(devtools)
 library(sf)
 library(googlesheets4)
 
+# Theme for plotting ----
+ggplot_theme <- 
+  ggplot2::theme_bw() +
+  ggplot2::theme( # use theme_get() to see available options
+    panel.grid = ggplot2::element_blank(),
+    panel.border = ggplot2::element_blank(),
+    axis.line = ggplot2::element_line(colour = "black"),
+    panel.grid.major = ggplot2::element_blank(),
+    panel.grid.minor = ggplot2::element_blank(),
+    legend.background = ggplot2::element_blank(),
+    legend.key = ggplot2::element_blank(), # switch off the rectangle around symbols in the legend
+    legend.text = ggplot2::element_text(size = 12),
+    legend.title = ggplot2::element_blank(),
+    # legend.position = "top",
+    text = ggplot2::element_text(size = 12),
+    strip.text.y = ggplot2::element_text(size = 12, angle = 0),
+    axis.title.x = ggplot2::element_text(vjust = 0.3, size = 12),
+    axis.title.y = ggplot2::element_text(vjust = 0.6, angle = 90, size = 12),
+    axis.text.y = ggplot2::element_text(size = 12),
+    axis.text.x = ggplot2::element_text(size = 12, angle = 90, vjust = 0.5, hjust=1),
+    axis.line.x = ggplot2::element_line(colour = "black", size = 0.5, linetype = "solid"),
+    axis.line.y = ggplot2::element_line(colour = "black", size = 0.5, linetype = "solid"),
+    strip.background = ggplot2::element_blank(),
+    
+    strip.text = ggplot2::element_text(size = 14, angle = 0),
+    
+    plot.title = ggplot2::element_text(color = "black", size = 12, face = "bold.italic")
+  )
+
+
 # Set your API token to access GlobalArchive data shared with you ----
 # It is extremely important that you keep your API token out of your scripts, and github repository!
 # This function will ask you to put your API token in the console
@@ -31,17 +61,33 @@ token <- readRDS("secrets/api_token.RDS")
 
 # # Load the metadata, count and length ----
 # # This way does not include the zeros where a species isn't present - it returns a much smaller dataframe
-# CheckEM::ga_api_all_data(synthesis_id = "19",
-#                          token = token,
-#                          dir = "data/raw/",
-#                          include_zeros = FALSE)
+CheckEM::ga_api_all_data(synthesis_id = "19",
+                         token = token,
+                         dir = "data/raw/",
+                         include_zeros = FALSE)
+
+# The campaigns we care about are:
+campaign_list <- c("2015-16_SA_MPA_UpperGSV_StereoBRUVS",
+                   "2015-201706_SA_MPA_StereoBRUVS",
+                   "201712-201806_SA_MarineParkMonitoring_StereoBRUVS",
+                   "201810-201903_SA_DEW_SAWater_Penneshaw_StereoBRUVS",
+                   "201811_Comm_PearsonExpedition_StereoBRUVS",
+                   "201811_SA_MPA_PearsonExpedition",
+                   "201812-201906_SA_MarineParkMonitoring_StereoBRUVS",
+                   "201905-201909_SA_DEW_SAWater_Sleaford Monitoring",
+                   "202008-202008_SA_DEW_SAWater Monitoring_StereoBRUVS",
+                   "202011-202011_SA Commonwealth Marine Park Monitoring_StereoBRUVS",
+                   "202012-202105_SA_MarineParkMonitoring_StereoBRUVS",
+                   "202110-202205_SA_MarineParkMonitoring_StereoBRUVS",
+                   "202111-202205_SA Commonwealth Marine Park Monitoring_StereoBRUVS")
+
 
 ## Load in data again to save time ----
-metadata <- readRDS("data/raw/metadata.RDS")
-count <- readRDS("data/raw/count.RDS")
-length <- readRDS("data/raw/length.RDS")
-benthos <- readRDS("data/raw/benthos_summarised.RDS")
-relief <- readRDS("data/raw/relief_summarised.RDS")
+metadata <- readRDS("data/raw/metadata.RDS") %>% filter(campaignid %in% c(campaign_list))
+count <- readRDS("data/raw/count.RDS") %>% left_join(metadata %>% select(sample_url, campaignid)) %>% filter(campaignid %in% c(campaign_list))
+length <- readRDS("data/raw/length.RDS") %>% left_join(metadata %>% select(sample_url, campaignid)) %>% filter(campaignid %in% c(campaign_list))
+benthos <- readRDS("data/raw/benthos_summarised.RDS") %>% filter(campaignid %in% c(campaign_list))
+relief <- readRDS("data/raw/relief_summarised.RDS") %>% filter(campaignid %in% c(campaign_list))
 
 species_list <- ga_api_species_list(token = token)
 
@@ -90,9 +136,11 @@ number_of_measurements
 
 # Depths surveyed ----
 min_depth <- metadata %>%
-  filter(!depth_m==0) %>%
+  filter(!depth_m == 0) %>%
   filter(depth_m == min(.$depth_m)) %>%
-  pull(depth_m)
+  distinct() %>%
+  pull(depth_m) %>%
+  unique()
 
 max_depth <- max(metadata$depth_m)
 
@@ -161,7 +209,7 @@ top_200_species_names <- count %>%
   dplyr::left_join(species_list) %>%
   dplyr::select(family, genus, species, australian_common_name, total_number) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  dplyr::slice_max(order_by = total_number, n = 200) %>%
+  # dplyr::slice_max(order_by = total_number, n = 200) %>%
   dplyr::pull(display_name)
 
 # Top 200 bubble data ----
@@ -260,14 +308,14 @@ date_hist <- simple_metadata |>
   ggplot_theme +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-depth_hist <- ggplot(dataframes$simple_metadata, aes(x = depth_m)) +
+depth_hist <- ggplot(simple_metadata, aes(x = depth_m)) +
   geom_histogram(binwidth = 5, fill = "#0072B2", color = "black") +
   xlab("Depth (m)") +
   ylab("Number of deployments") +
   scale_x_continuous(
     breaks = seq(
-      floor(min(dataframes$simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
-      ceiling(max(dataframes$simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
+      floor(min(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
+      ceiling(max(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
       by = 50
     )
   ) +
