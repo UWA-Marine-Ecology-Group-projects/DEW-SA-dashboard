@@ -14,75 +14,7 @@ library(dplyr)
 library(tidyr)
 library(lubridate)
 library(ggtext)
-
-# how to make it faster?
-# Helper functions
-# add_marine_park_layers <- function(map) {
-#   map %>%
-#     leafgl::addGlPolygons(data = ngari.mp, color = "black", weight = 1,
-#                           fillColor = "#7bbc63", fillOpacity = 0.8,
-#                           group = "State Marine Parks", popup = ngari.mp$Name) %>%
-#     
-#     leafgl::addGlPolygons(data = state.mp, color = "black", weight = 1,
-#                           fillColor = ~state.pal(zone), fillOpacity = 0.8,
-#                           group = "State Marine Parks", popup = state.mp$COMMENTS) %>%
-#     
-#     addLegend(pal = state.pal, values = state.mp$zone, opacity = 1,
-#               title = "State Zones", position = "bottomright",
-#               group = "State Marine Parks") %>%
-#     
-#     leafgl::addGlPolygons(data = commonwealth.mp, color = "black", weight = 1,
-#                           fillColor = ~commonwealth.pal(zone), fillOpacity = 0.8,
-#                           group = "Australian Marine Parks", popup = commonwealth.mp$ZoneName) %>%
-#     
-#     addLegend(pal = commonwealth.pal, values = commonwealth.mp$zone, opacity = 1,
-#               title = "Australian Marine Park Zones", position = "bottomright",
-#               group = "Australian Marine Parks") %>%
-#     
-#     addLayersControl(
-#       overlayGroups = c("Australian Marine Parks", "State Marine Parks", "Sampling locations"),
-#       options = layersControlOptions(collapsed = FALSE), position = "topright"
-#     ) %>%
-#     
-#     hideGroup("State Marine Parks") %>%
-#     hideGroup("Australian Marine Parks")
-# }
-# 
-# add_bubbles_to_map <- function(map, overzero, equalzero, value_col, max_val) {
-#   if (nrow(overzero)) {
-#     map <- map %>%
-#       addGlPoints(data = overzero, 
-#                   fillColor = "darkgreen", fillOpacity = 1, weight = 1,
-#                   radius = ~ ((10 + (.[[value_col]] / max_val) * 50)),
-#                   popup = as.character(.[[value_col]]),
-#                   group = "Sampling locations")
-#   }
-#   if (nrow(equalzero)) {
-#     map <- map %>%
-#       addGlPoints(data = equalzero, 
-#                   fillColor = "white", fillOpacity = 0.5, weight = 1,
-#                   radius = 10,
-#                   popup = as.character(.[[value_col]]),
-#                   group = "Sampling locations")
-#   }
-#   map
-# }
-
-# use reactive
-# deployment_points <- reactive({
-#   dataframes$deployment_locations
-# })
-
-# # 🧼 Remove unused columns before rendering:
-# Large sf objects with unnecessary columns slow rendering.
-
-# st_as_sf(overzero) %>% dplyr::select(longitude_dd, latitude_dd, count)
-
-# 🗂️ 3. Avoid full joins unless needed
-# You have this:
-# 
-# data <- full_join(data, dataframes$deployment_locations)
-# If you're just matching one-to-one on known keys, consider left_join() — it’s faster and avoids unnecessary row inflation.
+library(tidytext)
 
 # Load data
 load("app_data/values.Rdata")
@@ -93,13 +25,16 @@ load("app_data/plots.Rdata")
 commonwealth.mp <- readRDS("app_data/spatial/commonwealth.mp.RDS")
 # state.mp <- readRDS("app_data/spatial/state.mp.RDS")
 
+state.mp <- readRDS("app_data/spatial/sa.state.mp.RDS")
+
 # Pallettes for maps ----
-# state.pal <- colorFactor(c("#bfaf02", # conservation
-#                            "#7bbc63", # sanctuary = National Park
-#                            "#fdb930", # recreation
-#                            "#b9e6fb", # general use
-#                            '#ccc1d6' # special purpose
-# ), state.mp$zone)
+state.pal <- colorFactor(c("#f18080", # Restricted Access Zone (RAZ)
+                           "#69a802", # Sanctuary Zone (SZ)
+                           "#799CD2", # Habitat Protection (HPZ)
+                           "#BED4EE" # General Managed Use Zone (GMUZ)
+), state.mp$zone)
+
+# unique(state.mp$zone_type)
 
 commonwealth.pal <- colorFactor(c("#f6c1d9", # Sanctuary
                                   "#7bbc63", # National Park
@@ -108,6 +43,8 @@ commonwealth.pal <- colorFactor(c("#f6c1d9", # Sanctuary
                                   '#b9e6fb', # Multiple Use
                                   '#ccc1d6'# Special Purpose
 ), commonwealth.mp$zone)
+
+unique(commonwealth.mp$zone)
 
 
 # Theme for plotting ----
