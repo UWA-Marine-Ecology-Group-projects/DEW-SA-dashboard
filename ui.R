@@ -1,9 +1,4 @@
 page_navbar(
-  title = div(
-    "DEW SA Dashboard",
-    favicon = "www/favicon.ico",  # path to your favicon
-    style = "flex-grow: 1;"  # This pushes the rest of the nav content (like links/logos) to the right
-  ),
   theme = bs_theme(
     bootswatch = "minty", 
     primary = "#009E73",
@@ -13,18 +8,12 @@ page_navbar(
     code_font = font_google("Roboto")
   ),
   fillable = FALSE,
-  
-  # Add Fish Collective as an external link (opens in new tab)
-  nav_spacer(),
-  # nav_item(
-  #   a("Fish Collective", href = "https://fishcollective.github.io/", target = "_blank", class = "nav-link")
-  # ),
-  
+
   tags$head(tags$link(rel = "shortcut icon", href = "favicon.ico")),
   
   # Dashboard ----
   nav_panel(
-    "Statewide",
+    "State-wide Summary",
     tags$head(
       tags$style(HTML("
                .leaflet-container {z-index:0}
@@ -38,7 +27,7 @@ page_navbar(
 }"))
     ),
 
-h3("State-wide Summary"),
+# h3("State-wide Summary"),
     
     # Top Row - Four Value Boxes
     layout_column_wrap(
@@ -253,19 +242,30 @@ h3("State-wide Summary"),
     )
   ),
 
-# nav_spacer(),
+nav_panel(
+  "Explore a Marine Park"),
+
+nav_spacer(),
+
+title = div(
+  "DEW SA Dashboard",
+  favicon = "www/favicon.ico",  # path to your favicon,
+  style = "display: flex; gap: 10px; align-items: center; padding-right: 15px;font-weight: bold;"
+  # style = "padding-right: 1rem; font-weight: bold;"
+  # style = "flex-grow: 1;"  # This pushes the rest of the nav content (like links/logos) to the right
+),
+
+# 
 # nav_item(
 #   a("The Fish Collective", href = "https://fishcollective.github.io/", target = "_blank", class = "nav-link")
 # ),
 
 # Add logos to the top right corner
-# nav_item(
-#   tags$div(
-#     style = "display: flex; gap: 10px; align-items: center; padding-right: 15px;",
-#     tags$img(src = "Fish Collective_White Cropped.png", height = "40px"),
-#     tags$img(src = "mac-logo-white-cropped.png", height = "40px"),  
-#     tags$img(src = "ardc.png", height = "40px")
-# 
-#   )
-# ),
+nav_item(
+  tags$div(
+    style = "display: flex; gap: 10px; align-items: center; padding-right: 15px;",
+    tags$img(src = "dew_logo.png", height = "60px")
+
+  )
+)
 )

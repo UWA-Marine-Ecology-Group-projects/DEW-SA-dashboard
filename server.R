@@ -30,7 +30,9 @@ server <- function(input, output) {
                 title="Australian Marine Park Zones", position = "bottomright", group = "Australian Marine Parks") %>%
 
       addLayersControl(
-        overlayGroups = c("Australian Marine Parks", "State Marine Parks", "Sampling locations"),
+        overlayGroups = c("Australian Marine Parks", 
+                          # "State Marine Parks", 
+                          "Sampling locations"),
         options = layersControlOptions(collapsed = FALSE),
         position = "topright"
       ) %>%
