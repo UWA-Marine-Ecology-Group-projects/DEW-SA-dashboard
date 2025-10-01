@@ -269,14 +269,14 @@ layout_column_wrap(
       card_header("ALTERNATIVE PLOTS Effort by year"),
       full_screen = TRUE,
       max_height = 400,
-      plotOutput("date_hist_com")
+      plotOutput("date_hist_combined")
     ),
     
     card(
-      card_header("ALTERNATIVE PLTOS Effort by depth"),
+      card_header("ALTERNATIVE PLOTS Effort by depth"),
       full_screen = TRUE,
       max_height = 400,
-      plotOutput("depth_hist_com")
+      plotOutput("depth_hist_combined")
     )
   )
 ),
@@ -368,13 +368,16 @@ card(
 nav_panel(
   "Explore a Marine Park"),
 
+nav_panel(
+  "Status & Trends"),
+
 nav_spacer(),
 
 # Add logos to the top right corner
 nav_item(
   tags$div(
     style = "display: flex; gap: 10px; align-items: center; padding-right: 15px;",
-    tags$img(src = "dew_logo.png", height = "80px")
+    tags$img(src = "dew_logo.png", height = "70px")
     
   )
 )

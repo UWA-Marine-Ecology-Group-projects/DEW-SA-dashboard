@@ -477,6 +477,21 @@ server <- function(input, output) {
     
   })
   
+  # Alternative combined plots ----
+  output$date_hist_combined <- renderPlot({
+    
+    plots$date_hist_combined
+    
+  })
+  
+  output$depth_hist_combined <- renderPlot({
+    
+    plots$depth_hist_combined
+    
+  })
+  
+  
+  
   # # Set priorities so plots render before map
   # outputOptions(output, "map_deployments", priority = 5)
   # outputOptions(output, "depth_hist", priority = 1)

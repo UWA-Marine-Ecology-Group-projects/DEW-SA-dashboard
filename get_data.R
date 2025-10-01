@@ -489,18 +489,58 @@ depth_hist_rls <- ggplot(rls_simple_metadata, aes(x = depth_m)) +
   geom_histogram(binwidth = 5, fill = "#0c3978", color = "black") +
   xlab("Depth (m)") +
   ylab("Number of surveys") +
-  # scale_x_continuous(
-  #   breaks = seq(
-  #     floor(min(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
-  #     ceiling(max(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
-  #     by = 50
-  #   )
-  # ) +
   ggplot_theme
 
 
 # Combined plots ----
 # TODO on Wednesday :)
+bruv_years <- simple_metadata |>
+  mutate(year = as.numeric(format(date_time, "%Y"))) |>
+  count(year) |>
+  mutate(method = "stereo-BRUVs")
+
+rls_years <- rls_simple_metadata |>
+  dplyr::mutate(year = as.numeric(str_sub(survey_date, 1, 4))) %>%
+  count(year) |>
+  mutate(method = "UVC")
+
+date_hist_combined <- bind_rows(bruv_years, rls_years)|>
+  ggplot(aes(x = year, y = n, fill = method)) +
+  geom_bar(stat = "identity", color = "black") + #fill = "#0c3978", 
+  xlab("Year") +
+  ylab("Number of deployments") +
+  scale_fill_manual(values = c("#f89f00", "#0c3978")) +
+  # ggtitle("Deployments by Year") +
+  ggplot_theme +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+date_hist_combined
+
+# Combined depth plots ----
+depth_combined <- bind_rows(simple_metadata %>% mutate(method = "stereo-BRUVs"), 
+                            rls_simple_metadata %>% mutate(method = "UVC"))
+
+# bruv_depth <- ggplot(simple_metadata, aes(x = depth_m)) +
+#   geom_histogram(binwidth = 5, fill = "#0c3978", color = "black") +
+#   xlab("Depth (m)") +
+#   ylab("Number of deployments") +
+#   scale_x_continuous(
+#     breaks = seq(
+#       floor(min(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
+#       ceiling(max(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
+#       by = 50
+#     )
+#   ) +
+#   ggplot_theme
+
+depth_hist_combined <- ggplot(depth_combined, aes(x = depth_m, fill = method)) +
+  geom_histogram(binwidth = 5, color = "black") +
+  xlab("Depth (m)") +
+  ylab("Number of surveys") +
+  scale_fill_manual(values = c("#f89f00", "#0c3978")) +
+  ggplot_theme
+
+depth_hist_combined
 
 # Read in marineparks ----
 state.mp <- read_sf("data/spatial/CONSERVATION_StateMarineParkNW_Zoning_GDA94.shp") %>%
@@ -620,7 +660,9 @@ plots <- structure(
     date_hist = date_hist,
     depth_hist = depth_hist,
     date_hist_rls = date_hist_rls,
-    depth_hist_rls = depth_hist_rls
+    depth_hist_rls = depth_hist_rls,
+    date_hist_combined = date_hist_combined,
+    depth_hist_combined = depth_hist_combined
   ),
   class = "data"
 )
