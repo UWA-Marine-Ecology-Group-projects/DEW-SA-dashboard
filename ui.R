@@ -54,7 +54,7 @@ layout_column_wrap(
     
     full_screen = TRUE,
     
-  # Bruv stats ----
+    # Bruv stats ----
     layout_column_wrap(
       width = 1/2,
       value_box(
@@ -208,94 +208,108 @@ layout_column_wrap(
   
 ),
 
-# Firs row (maps) ----
+# # Firs row (maps) ----
+# 
+# layout_column_wrap(
+#   width = 1/2,
+#   
+#   # First Card: Map of Deployments BRUVs
+#   card(
+#     min_height = 500,
+#     full_screen = TRUE,
+#     card_header("Map of stereo-BRUV deployments"),
+#     
+#     leafletOutput("map_deployments", height = "400px"),
+#   ),
+#   
+#   # Second Card: Map of Deployments RLS
+#   card(
+#     min_height = 500,
+#     full_screen = TRUE,
+#     card_header("Map of UVC surveys"),
+#     
+#     leafletOutput("map_surveys", height = "400px"),
+#   )
+# ),
+# 
+# # Firs row (year and depths) ----
+# layout_column_wrap(
+#   width = 1/2,
+#   div(
+#     card(
+#       card_header("stereo BRUV deployments by year"),
+#       full_screen = TRUE,
+#       max_height = 400,
+#       plotOutput("date_hist")),
+#     
+#     card(
+#       card_header("stereo-BRUV depth frequency histogram"),
+#       full_screen = TRUE,
+#       max_height = 400,
+#       plotOutput("depth_hist")
+#     )
+#   ),
+#   div(
+#     card(
+#       card_header("UVC surveys by year"),
+#       full_screen = TRUE,
+#       max_height = 400,
+#       plotOutput("date_hist_rls")
+#     ),
+#     
+#     card(
+#       card_header("UVC depth frequency histogram"),
+#       full_screen = TRUE,
+#       max_height = 400,
+#       plotOutput("depth_hist_rls")
+#     )
+#   )
+# ),
+
 
 layout_column_wrap(
   width = 1/2,
-  
-  # First Card: Map of Deployments BRUVs
   card(
     min_height = 500,
     full_screen = TRUE,
-    card_header("Map of stereo-BRUV deployments"),
+    card_header("Map of Sampling Effort"),
     
-    leafletOutput("map_deployments", height = "400px"),
-  ),
-  
-  # Second Card: Map of Deployments RLS
-  card(
-    min_height = 500,
-    full_screen = TRUE,
-    card_header("Map of UVC surveys"),
-    
-    leafletOutput("map_surveys", height = "400px"),
-  )),
-
-# Firs row (year and depths) ----
-layout_column_wrap(
-  width = 1/3,
-  div(
-    card(
-      card_header("stereo BRUV deployments by year"),
-      full_screen = TRUE,
-      max_height = 400,
-      plotOutput("date_hist")),
-    
-    card(
-      card_header("stereo-BRUV depth frequency histogram"),
-      full_screen = TRUE,
-      max_height = 400,
-      plotOutput("depth_hist")
-    )
-  ),
-  div(
-    card(
-      card_header("UVC surveys by year"),
-      full_screen = TRUE,
-      max_height = 400,
-      plotOutput("date_hist_rls")
-    ),
-    
-    card(
-      card_header("UVC depth frequency histogram"),
-      full_screen = TRUE,
-      max_height = 400,
-      plotOutput("depth_hist_rls")
-    )
+    leafletOutput("map_combined", height = "400px"),
   ),
   
   div(
     card(
-      card_header("ALTERNATIVE PLOTS Effort by year"),
+      card_header("Sampling Effort by Year"),
       full_screen = TRUE,
       max_height = 400,
       plotOutput("date_hist_combined")
     ),
     
     card(
-      card_header("ALTERNATIVE PLOTS Effort by depth"),
+      card_header("Sampling Effort by Depth"),
       full_screen = TRUE,
       max_height = 400,
       plotOutput("depth_hist_combined")
     )
-  )
-),
+  )),
 
-# Third Row - Abundant species Plot and Leaflet (plot1 and map1)
-# layout_column_wrap(
-#   width = 1/2,
-  card(
-    min_height = 650,
-    full_screen = TRUE,
-    card_header("Most Abundant Species"),
-    plotOutput("top_species_plot", height = "400px")
-  ),
+
+# # Third Row - Abundant species Plot and Leaflet (plot1 and map1)
+# layout_columns(
+#   # width = 1/2,
+#   col_widths = c(8, 4),  # 8/12 = ~66% and 4/12 = ~33% (close to 60/40)
+card(
+  min_height = 650,
+  full_screen = TRUE,
+  card_header("Most Abundant Species"),
+  plotOutput("top_species_plot", height = "400px")
+),
 
 card(
   min_height = 650,
   full_screen = TRUE,
   card_header("Spatial distribution of assemblage metrics"),
-
+  
   shinyWidgets::pickerInput(
     inputId = "assemblage",
     label = "Choose an assemblage metric:",
@@ -305,24 +319,42 @@ card(
     selected = "Total abundance",
     options = list(`actions-box` = TRUE, `live-search` = FALSE, `dropup-auto` = FALSE)
   ),
-
-  # selectInput("metric_select", "Choose an assemblage metric", 
-  #             choices = c("Total abundance", "Species richness")),
-  leafletOutput("assemblage_map", height = "400px")
+  
+  layout_column_wrap(
+    width = 1/2,
+    
+    # leafsync::sync(
+      leafletOutput("assemblage_map", height = "400px"),
+      leafletOutput("assemblage_map_rls", height = "400px")#,
+      # ncol = 2
+    # )
+    
+    
+    # card(
+    #   card_header("stereo-BRUVs"),
+    # leafletOutput("assemblage_map", height = "400px")
+    # ),
+    # card(
+    #   card_header("UVC"),
+    # leafletOutput("assemblage_map_rls", height = "400px")
+    # )
+  )
 ),
+
+# ),
 
 # Fourth Row - Species map and iframe
 card(full_screen = TRUE,
-
+     
      max_height = 700,
-
+     
      layout_column_wrap(
        width = 1/2,
-
+       
        card(
          full_screen = TRUE,
          card_header("Investigate a species abundance data"),
-
+         
          shinyWidgets::pickerInput(
            inputId = "species_select",
            label = "Choose a species:",
@@ -332,10 +364,10 @@ card(full_screen = TRUE,
            selected = values$top_200_species_names[1],
            options = list(`actions-box` = TRUE, `live-search` = TRUE, `dropup-auto` = TRUE)
          ),
-
+         
          leafletOutput("species_map", height = "400px")
        ),
-
+       
        card(
          full_screen = TRUE,
          htmlOutput("iframe")

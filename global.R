@@ -15,6 +15,9 @@ library(tidyr)
 library(lubridate)
 library(ggtext)
 library(tidytext)
+# library(leafsync)
+library(leaflet.extras2)
+library(rmapshaper)
 
 # Load data
 load("app_data/values.Rdata")
@@ -26,6 +29,9 @@ commonwealth.mp <- readRDS("app_data/spatial/commonwealth.mp.RDS")
 # state.mp <- readRDS("app_data/spatial/state.mp.RDS")
 
 state.mp <- readRDS("app_data/spatial/sa.state.mp.RDS")
+
+state.mp  <- rmapshaper::ms_simplify(state.mp, keep = 0.5, keep_shapes = TRUE)
+commonwealth.mp <- rmapshaper::ms_simplify(commonwealth.mp, keep = 0.5, keep_shapes = TRUE)
 
 # Pallettes for maps ----
 state.pal <- colorFactor(c("#f18080", # Restricted Access Zone (RAZ)
@@ -92,7 +98,7 @@ add_legend <- function(map, colors, labels, sizes, opacity = 1, group, title) { 
                        labels = labelAdditions,
                        opacity = opacity,
                        title = title,
-                       position = "bottomleft",
+                       position = "topright",
                        group = group
     )
   )

@@ -393,6 +393,24 @@ metric_bubble_data <- count %>%
   dplyr::select(sample_url, metric, value, longitude_dd, latitude_dd) %>%
   glimpse()
 
+# Total abundance and species richness bubble data RLS----
+metric_bubble_data_rls <- rls_count %>%
+  dplyr::left_join(rls_metadata) %>%
+  dplyr::left_join(species_list) %>%
+  dplyr::select(survey_id, family, genus, species, count, longitude_dd, latitude_dd, depth_m, australian_common_name) %>%
+  dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
+  dplyr::group_by(survey_id) %>%
+  dplyr::summarise(total_abundance = sum(count, na.rm = TRUE),
+                   species_richness = n_distinct(family, genus, species)) %>%
+  full_join(rls_metadata) %>%
+  replace_na(list(total_abundance = 0, species_richness = 0)) %>%
+  dplyr::select(survey_id, total_abundance, species_richness) %>%
+  pivot_longer(!c(survey_id), names_to = "metric", values_to = "value") %>%
+  dplyr::left_join(rls_metadata) %>%
+  dplyr::ungroup() %>%
+  dplyr::select(survey_id, metric, value, longitude_dd, latitude_dd) %>%
+  glimpse()
+
 # Fishes of Australia codes ----
 dbca_googlesheet_url <- "https://docs.google.com/spreadsheets/d/1OuOt80TvJBCMPLR6oy7YhfoSD4VjC73cuKovGobxiyI/edit?usp=sharing"
 
@@ -644,8 +662,8 @@ dataframes <- structure(
     simple_metadata = simple_metadata,
     
     
-    deployment_locations_rls = deployment_locations_rls#,
-    # metric_bubble_data = metric_bubble_data,
+    deployment_locations_rls = deployment_locations_rls,
+    metric_bubble_data_rls = metric_bubble_data_rls
     # bubble_data_200 = bubble_data_200,
     # length_200_with_jurisdiction = length_200_with_jurisdiction,
     #simple_metadata_rls = simple_metadata_rls

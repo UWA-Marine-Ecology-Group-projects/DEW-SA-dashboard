@@ -1,277 +1,244 @@
-server <- function(input, output) {
+# --------------------------- shared helpers ----------------------------------
+
+base_map <- function(max_zoom = 11, current_zoom = 6) {
+  leaflet() |>
+    addTiles(options = tileOptions(minZoom = 4, max_zoom)) |>
+    setView(lng = 135.3, lat = -35.1, current_zoom) |>
+    addMapPane("polys",  zIndex = 410) |>
+    addMapPane("points", zIndex = 420) |>
+    # # Static polygon layers
+    # leafgl::addGlPolygons(
+    #   data = state.mp,
+    #   color = "black",
+    #   weight = 1,
+    #   fillColor = ~state.pal(zone),
+    #   fillOpacity = 0.8,
+    #   group = "State Marine Parks",
+    #   popup = state.mp$name,
+    #   pane = "polys"
+    # ) |>
+    # leafgl::addGlPolygons(
+    #   data = commonwealth.mp,
+    #   color = "black",
+    #   weight = 1,
+    #   fillColor = ~commonwealth.pal(zone),
+    #   fillOpacity = 0.8,
+    #   group = "Australian Marine Parks",
+    #   popup = commonwealth.mp$ZoneName,
+    #   pane = "polys"
+    # ) |>
+    
+    # Use regular polygons for static layers:
+    addPolygons(
+      data = state.mp,                # or state.mp_s if you simplified
+      color = "black", weight = 1,
+      fillColor = ~state.pal(zone), fillOpacity = 0.8,
+      group = "State Marine Parks",
+      popup = ~name,
+      options = pathOptions(pane = "polys")
+    ) |>
+    addPolygons(
+      data = commonwealth.mp,         # or common.mp_s if simplified
+      color = "black", weight = 1,
+      fillColor = ~commonwealth.pal(zone), fillOpacity = 0.8,
+      group = "Australian Marine Parks",
+      popup = ~ZoneName,
+      options = pathOptions(pane = "polys")
+    ) %>%
+    
+    # Legends
+    addLegend(
+      pal = state.pal,
+      values = state.mp$zone,
+      opacity = 1,
+      title = "State Zones",
+      position = "bottomleft",
+      group = "State Marine Parks"
+    ) |>
+    addLegend(
+      pal = commonwealth.pal,
+      values = commonwealth.mp$zone,
+      opacity = 1,
+      title = "Australian Marine Park Zones",
+      position = "bottomleft",
+      group = "Australian Marine Parks"
+    ) |>
+    addLayersControl(
+      overlayGroups = c("Australian Marine Parks", "State Marine Parks", "Sampling locations"),
+      options = layersControlOptions(collapsed = FALSE),
+      position = "topright"
+    ) 
+}
+
+# viridis colours for depth using full domain for consistent legend
+depth_cols_and_pal <- function(values_numeric) {
+  list(
+    cols = colourvalues::colour_values_rgb(-values_numeric, palette = "viridis", include_alpha = FALSE) / 255,
+    pal  = colorNumeric(palette = rev(viridisLite::viridis(256)), domain = values_numeric)
+  )
+}
+
+# shared updater for "Sampling locations" group with numeric legend
+update_points_with_numeric_legend <- function(map_id, data, fill_cols, legend_pal, legend_values,
+                                              legend_title = "Depth (m)") {
+  leafletProxy(map_id, data = data) |>
+    clearGroup("Sampling locations") |>
+    leafgl::addGlPoints(
+      data = data,
+      fillColor = fill_cols,
+      weight = 1,
+      popup = data$popup,
+      group = "Sampling locations",
+      pane = "points"
+    ) |>
+    clearControls() |>
+    addLegend(
+      "topright",
+      pal = legend_pal,
+      values = legend_values,
+      title = legend_title,
+      opacity = 1,
+      group = "Sampling locations"
+    )
+}
+
+# bubble legend (three sizes) - uses your existing add_legend helper
+add_bubble_legend <- function(map, max_val, title) {
+  add_legend(
+    map,
+    colors = c("white", "#f89f00", "#f89f00"),
+    labels = c(0, round(max_val / 2), max_val),
+    sizes  = c(5, 20, 40),
+    title  = title,
+    group  = "Sampling locations"
+  )
+}
+
+# ------------------------------ server ---------------------------------------
+
+server <- function(input, output, session) {
   
-  output$map_deployments <- renderLeaflet({
-    leaflet() %>%
-      addTiles(options = tileOptions(minZoom = 4, maxZoom = 11)) %>%
-      setView(lng = 135, lat = -35.1, zoom = 6) %>%
-      addMapPane("polys",  zIndex = 410) %>%
-      addMapPane("points", zIndex = 420)  %>% # higher = on top
-      
-      # Static polygon layers
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~state.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$name,
-                            pane = "polys") %>%
-      
-      leafgl::addGlPolygons(data = commonwealth.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~commonwealth.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "Australian Marine Parks",
-                            popup = commonwealth.mp$ZoneName,
-                            pane = "polys") %>%
-      
-      # Legends
-      addLegend(pal = state.pal,
-                values = state.mp$zone,
-                opacity = 1,
-                title="State Zones",
-                position = "bottomright",
-                group = "State Marine Parks") %>%
-      
-      addLegend(pal = commonwealth.pal,
-                values = commonwealth.mp$zone, opacity = 1,
-                title="Australian Marine Park Zones",
-                position = "bottomright",
-                group = "Australian Marine Parks") %>%
-      
-      addLayersControl(
-        overlayGroups = c("Australian Marine Parks",
-                          "State Marine Parks",
-                          "Sampling locations"),
-        options = layersControlOptions(collapsed = FALSE),
-        position = "topright"
-      ) %>%
-      
-      hideGroup("State Marine Parks") %>%
-      hideGroup("Australian Marine Parks")
-  })
+  # Base maps (shared scaffolding) ----
+  output$map_deployments <- renderLeaflet(base_map())
+  output$map_surveys     <- renderLeaflet(base_map())
+  output$map_combined     <- renderLeaflet(base_map(current_zoom = 7))
+  output$species_map     <- renderLeaflet(base_map())
+  output$assemblage_map  <- renderLeaflet(base_map())
+  output$assemblage_map_rls  <- renderLeaflet(base_map())
   
+  # ---- deployments map (primary points) -------------------------------------
   observe({
     all_points <- dataframes$deployment_locations
-    points <- all_points
     
-    cols <- colour_values_rgb(-points$depth_m, palette = "viridis", include_alpha = FALSE) / 255
+    dc <- depth_cols_and_pal(all_points$depth_m)
     
-    depth_pal <- colorNumeric(
-      palette = rev(viridisLite::viridis(256)),
-      domain = all_points$depth_m  # Keep full domain for consistent color legend
+    update_points_with_numeric_legend(
+      map_id       = "map_deployments",
+      data         = all_points,
+      fill_cols    = dc$cols,
+      legend_pal   = dc$pal,
+      legend_values= all_points$depth_m,
+      legend_title = "Depth (m)"
     )
-    
-    leafletProxy("map_deployments", data = points) %>%
-      clearGroup("Sampling locations") %>%
-      leafgl::addGlPoints(
-        data = points,
-        fillColor = cols,
-        weight = 1,
-        popup = points$popup,
-        group = "Sampling locations",
-        pane = "points"
-      ) %>%
-      clearControls() %>%
-      addLegend(
-        "bottomleft",
-        pal = depth_pal,
-        values = all_points$depth_m,
-        title = "Depth (m)",
-        opacity = 1,
-        group = "Sampling locations"
-      )
   })
   
-  output$map_surveys <- renderLeaflet({
-    leaflet() %>%
-      addTiles(options = tileOptions(minZoom = 4, maxZoom = 11)) %>%
-      setView(lng = 135, lat = -35.1, zoom = 6) %>% 
-      addMapPane("polys",  zIndex = 410) %>%
-      addMapPane("points", zIndex = 420)  %>% # higher = on top
-      # Static polygon layers
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~state.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$name,
-                            pane = "polys") %>%
-      
-      leafgl::addGlPolygons(data = commonwealth.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~commonwealth.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "Australian Marine Parks",
-                            popup = commonwealth.mp$ZoneName,
-                            pane = "polys") %>%
-      
-      # Legends
-      addLegend(pal = state.pal, 
-                values = state.mp$zone, 
-                opacity = 1,
-                title="State Zones", 
-                position = "bottomright", 
-                group = "State Marine Parks") %>%
-      
-      addLegend(pal = commonwealth.pal, 
-                values = commonwealth.mp$zone, opacity = 1,
-                title="Australian Marine Park Zones", 
-                position = "bottomright", 
-                group = "Australian Marine Parks") %>%
-      
-      addLayersControl(
-        overlayGroups = c("Australian Marine Parks",
-                          "State Marine Parks",
-                          "Sampling locations"),
-        options = layersControlOptions(collapsed = FALSE),
-        position = "topright"
-      ) %>%
-      
-      hideGroup("State Marine Parks") %>%
-      hideGroup("Australian Marine Parks") 
-  })
-  
+  # ---- surveys map (RLS points) ---------------------------------------------
   observe({
     all_points_rls <- dataframes$deployment_locations_rls
-    points_rls <- all_points_rls
     
-    cols_rls <- colour_values_rgb(-points_rls$depth_m, palette = "viridis", include_alpha = FALSE) / 255
+    dc <- depth_cols_and_pal(all_points_rls$depth_m)
     
-    depth_pal_rls <- colorNumeric(
-      palette = rev(viridisLite::viridis(256)),
-      domain = all_points_rls$depth_m  # Keep full domain for consistent color legend
+    update_points_with_numeric_legend(
+      map_id       = "map_surveys",
+      data         = all_points_rls,
+      fill_cols    = dc$cols,
+      legend_pal   = dc$pal,
+      legend_values= all_points_rls$depth_m,
+      legend_title = "Depth (m)"
     )
+  })
+  
+  # ---- deployments combined (bruv and rls points) -------------------------------------
+  observe({
+    all_points <- bind_rows(dataframes$deployment_locations %>% mutate(method = "stereo-BRUVs"), 
+                            dataframes$deployment_locations_rls %>% mutate(method = "UVC"))
+    # method → colour mapping
+    method_cols <- c("stereo-BRUVs" = "#f89f00", "UVC" = "#0c3978")
     
-    leafletProxy("map_surveys", data = points_rls) %>%
-      clearGroup("Sampling locations") %>%
+    leafletProxy("map_combined", data = all_points) |>
+      clearGroup("Sampling locations") |>
       leafgl::addGlPoints(
-        data = points_rls,
-        fillColor = cols_rls,
+        data = all_points,
+        fillColor = method_cols[all_points$method],  # lookup
         weight = 1,
-        popup = points_rls$popup,
+        popup = all_points$popup,
         group = "Sampling locations",
         pane = "points"
-      ) %>%
-      clearControls() %>%
+      ) |>
       addLegend(
-        "bottomleft",
-        pal = depth_pal_rls,
-        values = all_points_rls$depth_m,
-        title = "Depth (m)",
+        "topright",
+        colors = unname(method_cols),
+        labels = names(method_cols),
+        title = "Survey method",
         opacity = 1,
-        group = "Sampling locations"
+        group = "Sampling locations",
+        layerId = "methodLegend"
       )
   })
   
-  output$species_map <- renderLeaflet({
-
+  # ---- species bubble map ----------------------------------------------------
+  # Map canvas is rendered above via base_map(); here we add bubbles & legend.
+  observe({
+    req(input$species_select)
+    
     data <- dataframes$bubble_data_200 %>%
-      dplyr::filter(display_name %in% input$species_select)
-
-    data <- full_join(data, dataframes$deployment_locations) %>%
-      tidyr::replace_na(list(count = 0)) %>%
-      glimpse()
-
-    max_ab <- ifelse(nrow(data) > 0, max(data$count, na.rm = TRUE), 1)  # Avoid errors
-
-    overzero <- filter(data, count > 0) # %>% glimpse()
-    overzero = st_as_sf(overzero#, coords = c("longitude_dd", "latitude_dd")
-    )
-
-    equalzero <- filter(data, count == 0)
-    equalzero = st_as_sf(equalzero#, coords = c("longitude_dd", "latitude_dd")
-    )
-
-    # Initial Leaflet map ----
-    map <- leaflet(data) %>%
-      addTiles(options = tileOptions(minZoom = 4, maxZoom = 11)) %>%
-      setView(lng = 135, lat = -35.1, zoom = 6) %>%
-      addMapPane("polys",  zIndex = 410) %>%
-      addMapPane("points", zIndex = 420)  %>% # higher = on top
+      dplyr::filter(display_name %in% input$species_select) %>%
+      dplyr::full_join(dataframes$deployment_locations) %>%   # keep your original join semantics
+      tidyr::replace_na(list(count = 0))
+    
+    max_ab <- ifelse(nrow(data) > 0, max(data$count, na.rm = TRUE), 1)
+    
+    overzero  <- dplyr::filter(data, count > 0) %>% sf::st_as_sf()
+    equalzero <- data %>% dplyr::filter(count == 0) %>% sf::st_as_sf()
+    
+    map <- leafletProxy("species_map") %>%
+      clearGroup("Sampling locations") 
+    
+    map <- add_bubble_legend(map, max_val = max_ab, title = "Abundance")
+    
+    if (nrow(overzero)) {
+      overzero$radius <- 10 + (overzero$count / max_ab) * 50
       
-      # Static polygon layers
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~state.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$name,
-                            pane = "polys") %>%
-      
-      leafgl::addGlPolygons(data = commonwealth.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~commonwealth.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "Australian Marine Parks",
-                            popup = commonwealth.mp$ZoneName,
-                            pane = "polys") %>%
-      
-      # Legends
-      addLegend(pal = state.pal,
-                values = state.mp$zone,
-                opacity = 1,
-                title="State Zones",
-                position = "bottomright",
-                group = "State Marine Parks") %>%
-      
-      addLegend(pal = commonwealth.pal,
-                values = commonwealth.mp$zone, opacity = 1,
-                title="Australian Marine Park Zones",
-                position = "bottomright",
-                group = "Australian Marine Parks") %>%
-      
-      addLayersControl(
-        overlayGroups = c("Australian Marine Parks",
-                          "State Marine Parks",
-                          "Sampling locations"),
-        options = layersControlOptions(collapsed = FALSE),
-        position = "topright"
-      ) %>%
-      
-      hideGroup("State Marine Parks") %>%
-      hideGroup("Australian Marine Parks") %>%
-      add_legend(colors = c("white", "green", "green"),
-                 labels = c(0, round(max_ab / 2), max_ab),
-                 sizes = c(5, 20, 40),
-                 title = "Abundance",
-                 group = "Sampling locations"
-      )
-
+      map <- map %>%
+        leafgl::addGlPoints(
+          data = overzero,
+          fillColor = "#f89f00",
+          fillOpacity = 1,
+          weight = 1,
+          radius = overzero$radius,
+          popup = as.character(overzero$count),
+          group = "Sampling locations",
+          pane = "points"
+        )
+    }
+    
     if (nrow(equalzero)) {
       map <- map %>%
-
-        addGlPoints(data = equalzero,
-                    fillColor = "white",
-                    fillOpacity = 0.5,
-                    weight = 1,
-                    radius = 10,
-                    popup = as.character(equalzero$count),
-                    group = "Sampling locations")
+        leafgl::addGlPoints(
+          data = equalzero,
+          fillColor = "white",
+          fillOpacity = 0.5,
+          weight = 1,
+          radius = 10,
+          popup = as.character(equalzero$count),
+          group = "Sampling locations",
+          pane = "points"
+        )
     }
-
-    if (nrow(overzero)) {
-      map <- map %>%
-
-        addGlPoints(data = overzero,
-                    fillColor = "#009E73",
-                    fillOpacity = 1,
-                    weight = 1,
-                    radius = ~ ((10 + (overzero$count / max_ab) * 50)),
-                    popup = as.character(overzero$count),
-                    group = "Sampling locations") #%>%
-    }
-    map
   })
   
-  # Assemblage map ----
-  output$assemblage_map <- renderLeaflet({
-    
+  # ---- assemblage bubble map -------------------------------------------------
+  observe({
     req(input$assemblage)
     
     assemblage_metric <- input$assemblage |>
@@ -281,107 +248,124 @@ server <- function(input, output) {
     data <- dataframes$metric_bubble_data %>%
       dplyr::filter(metric %in% assemblage_metric)
     
-    max_ab <- ifelse(nrow(data) > 0, max(data$value, na.rm = TRUE), 1)  # Avoid errors
+    max_ab <- ifelse(nrow(data) > 0, max(data$value, na.rm = TRUE), 1)
     
-    overzero <- filter(data, value > 0)
-    overzero = st_as_sf(overzero, coords = c("longitude_dd", "latitude_dd"))
+    overzero <- dplyr::filter(data, value > 0) %>%
+      sf::st_as_sf(coords = c("longitude_dd", "latitude_dd"))
     
-    equalzero <- filter(data, value == 0)
-    equalzero = st_as_sf(equalzero, coords = c("longitude_dd", "latitude_dd"))
+    equalzero <- dplyr::filter(data, value == 0) %>%
+      sf::st_as_sf(coords = c("longitude_dd", "latitude_dd"))
     
-    # Initial Leaflet map ----
-    map <- leaflet(data) %>%
-      addTiles(options = tileOptions(minZoom = 4, maxZoom = 11)) %>%
-      setView(lng = 135, lat = -35.1, zoom = 6) %>%
-      addMapPane("polys",  zIndex = 410) %>%
-      addMapPane("points", zIndex = 420)  %>% # higher = on top
+    map <- leafletProxy("assemblage_map") %>%
+      clearGroup("Sampling locations") %>%
+      add_bubble_legend(max_val = max_ab, title = input$assemblage) 
+
+    if (nrow(overzero)) {
+      overzero$radius <- 10 + (overzero$value / max_ab) * 50
       
-      # Static polygon layers
-      leafgl::addGlPolygons(data = state.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~state.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "State Marine Parks",
-                            popup = state.mp$name,
-                            pane = "polys") %>%
-      
-      leafgl::addGlPolygons(data = commonwealth.mp,
-                            color = "black",
-                            weight = 1,
-                            fillColor = ~commonwealth.pal(zone),
-                            fillOpacity = 0.8,
-                            group = "Australian Marine Parks",
-                            popup = commonwealth.mp$ZoneName,
-                            pane = "polys") %>%
-      
-      # Legends
-      addLegend(pal = state.pal,
-                values = state.mp$zone,
-                opacity = 1,
-                title="State Zones",
-                position = "bottomright",
-                group = "State Marine Parks") %>%
-      
-      addLegend(pal = commonwealth.pal,
-                values = commonwealth.mp$zone, opacity = 1,
-                title="Australian Marine Park Zones",
-                position = "bottomright",
-                group = "Australian Marine Parks") %>%
-      
-      addLayersControl(
-        overlayGroups = c("Australian Marine Parks",
-                          "State Marine Parks",
-                          "Sampling locations"),
-        options = layersControlOptions(collapsed = FALSE),
-        position = "topright"
-      ) %>%
-      
-      hideGroup("State Marine Parks") %>%
-      hideGroup("Australian Marine Parks") %>%
-      add_legend(colors = c("white", "green", "green"),
-                 labels = c(0, round(max_ab / 2), max_ab),
-                 sizes = c(5, 20, 40),
-                 title = input$assemblage,
-                 group = "Sampling locations"
-      )
+      map <- map %>%
+        leafgl::addGlPoints(
+          data = overzero,
+          fillColor = "#f89f00",
+          fillOpacity = 1,
+          weight = 1,
+          radius = overzero$radius,
+          popup = as.character(overzero$value),
+          group = "Sampling locations",
+          pane = "points"
+        )
+    }
+
+    if (nrow(equalzero)) {
+      map %>%
+        addCircleMarkers(
+          data = equalzero,
+          fillColor = "white",
+          color = "black",
+          fillOpacity = 1,
+          weight = 1,
+          radius = 5,
+          popup = as.character(equalzero$value),
+          group = "Sampling locations"
+        )
+    }
+  })
+  
+  # ---- assemblage bubble map RLS -------------------------------------------------
+  observe({
+    req(input$assemblage)
+    
+    assemblage_metric <- input$assemblage |>
+      tolower() |>
+      stringr::str_replace_all(" ", "_")
+    
+    data <- dataframes$metric_bubble_data_rls %>%
+      dplyr::filter(metric %in% assemblage_metric)
+    
+    max_ab <- ifelse(nrow(data) > 0, max(data$value, na.rm = TRUE), 1)
+    
+    overzero <- dplyr::filter(data, value > 0) %>%
+      sf::st_as_sf(coords = c("longitude_dd", "latitude_dd"))
+    
+    equalzero <- dplyr::filter(data, value == 0) %>%
+      sf::st_as_sf(coords = c("longitude_dd", "latitude_dd"))
+    
+    map <- leafletProxy("assemblage_map_rls") %>%
+      clearGroup("Sampling locations") %>%
+      add_bubble_legend(max_val = max_ab, title = input$assemblage)
     
     if (nrow(overzero)) {
+      overzero$radius <- 10 + (overzero$value / max_ab) * 50
+      
       map <- map %>%
-        
-        addGlPoints(data = overzero,
-                    fillColor = "#009E73",
-                    fillOpacity = 1,
-                    weight = 1,
-                    radius = ~ ((10 + (overzero$value / max_ab) * 50)),
-                    popup = as.character(overzero$value),
-                    group = "Sampling locations") #%>%
+        leafgl::addGlPoints(
+          data = overzero,
+          fillColor = "#f89f00",
+          fillOpacity = 1,
+          weight = 1,
+          radius = overzero$radius,
+          popup = as.character(overzero$value),
+          group = "Sampling locations",
+          pane = "points"
+        )
     }
     
     if (nrow(equalzero)) {
-      glimpse(equalzero)
-      
-      map <- map %>%
-        
-        addCircleMarkers(data = equalzero,
-                         fillColor = "white",
-                         color = "black",
-                         fillOpacity = 1,
-                         weight = 1,
-                         radius = 5,
-                         popup = as.character(equalzero$value),
-                         group = "Sampling locations")
+      map %>%
+        addCircleMarkers(
+          data = equalzero,
+          fillColor = "white",
+          color = "black",
+          fillOpacity = 1,
+          weight = 1,
+          radius = 5,
+          popup = as.character(equalzero$value),
+          group = "Sampling locations"
+        )
     }
-    
-    map
   })
   
-  ## Top twenty most common species ----
+  # sync after rendering
+  observe({
+    leafletProxy("assemblage_map") %>%
+      leaflet.extras2::addLeafletsync(c("assemblage_map", "assemblage_map_rls"))
+  })
+  # 
+  # # after renderLeaflet() for both maps:
+  # session$onFlushed(function() {
+  #   leafletProxy("assemblage_map") %>%
+  #     leaflet.extras2::addLeafletsync(c("assemblage_map_rls"))
+  #   leafletProxy("assemblage_map_rls") %>%
+  #     leaflet.extras2::addLeafletsync(c("assemblage_map"))
+  # }, once = TRUE)
+  
+  # ---- plots (kept as-is) ----------------------------------------------------
   output$top_species_plot <- renderPlot({
-    
-    data <- dataframes$top_species_combined |> # Changed here to both methods
-      tidyr::extract(display_name, into = c("sci", "common"),
-                     regex = "^(.*?)\\s*\\((.*?)\\)$", remove = FALSE) |>
+    data <- dataframes$top_species_combined %>%  # both methods
+      tidyr::extract(
+        display_name, into = c("sci", "common"),
+        regex = "^(.*?)\\s*\\((.*?)\\)$", remove = FALSE
+      ) %>%
       dplyr::mutate(
         label = paste0("<i>", sci, "</i><span> (", common, ")</span>")
       )
@@ -395,30 +379,25 @@ server <- function(input, output) {
       xlab("Species") +
       ylab("Overall abundance") +
       scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-      scale_x_reordered() +     # <<— important to clean up labels
+      scale_x_reordered() +
       ggplot_theme +
       theme(axis.text.y = ggtext::element_markdown(size = 12)) +
       facet_wrap(vars(method), scales = "free")
   })
   
-  # Create species iframe
   output$iframe <- renderUI({
-    
     dat <- dataframes$foa_codes[display_name %in% c(input$species_select)] %>%
       dplyr::distinct(url) %>%
       dplyr::pull("url")
     
-    frame <- tags$iframe(src = paste0(dat),
-                         style = "width: 100%; height: 100vh; border: none;",
-                         onload = "resizeIframe(this)"
+    tags$iframe(
+      src = paste0(dat),
+      style = "width: 100%; height: 100vh; border: none;",
+      onload = "resizeIframe(this)"
     )
-    
-    frame
-    
   })
   
   output$length_histogram <- renderPlot({
-    
     length <- dataframes$length_200_with_jurisdiction %>%
       dplyr::filter(display_name %in% input$species_length)
     
@@ -430,71 +409,31 @@ server <- function(input, output) {
         x = "Length (mm)",
         y = "Frequency"
       )
-    
   })
   
-  
+  # Length histogram ----
   output$length_histogram_density <- renderPlot({
-    
     length <- dataframes$length_200_with_jurisdiction %>%
       dplyr::filter(display_name %in% input$species_length)
     
-    ggplot(length, aes(x = length_mm, fill = status
-    )) +
-      geom_histogram(aes(y = ..density..), binwidth = 10, fill = "#0c3978", color = "black", position = "identity") +
+    ggplot(length, aes(x = length_mm, fill = status)) +
+      geom_histogram(aes(y = ..density..), binwidth = 10, fill = "#0c3978",
+                     color = "black", position = "identity") +
       facet_grid(status ~ jurisdiction, scales = "free_y") +
-      labs(
-        # title = "Normalized Histograms of Fish Length",
-        x = "Length (mm)",
-        y = "Proportion (Density)"
-      ) +
+      labs(x = "Length (mm)", y = "Proportion (Density)") +
       ggplot_theme
-    
   })
   
+  # simple plots ----
+  output$depth_hist          <- renderPlot({ plots$depth_hist })
+  output$date_hist           <- renderPlot({ plots$date_hist })
+  output$depth_hist_rls      <- renderPlot({ plots$depth_hist_rls })
+  output$date_hist_rls       <- renderPlot({ plots$date_hist_rls })
+  output$date_hist_combined  <- renderPlot({ plots$date_hist_combined })
+  output$depth_hist_combined <- renderPlot({ plots$depth_hist_combined })
   
-  output$depth_hist <- renderPlot({
-    
-    plots$depth_hist
-    
-  })
-  
-  output$date_hist <- renderPlot({
-    
-    plots$date_hist
-    
-  })
-  
-  output$depth_hist_rls <- renderPlot({
-    
-    plots$depth_hist_rls
-    
-  })
-  
-  output$date_hist_rls <- renderPlot({
-    
-    plots$date_hist_rls
-    
-  })
-  
-  # Alternative combined plots ----
-  output$date_hist_combined <- renderPlot({
-    
-    plots$date_hist_combined
-    
-  })
-  
-  output$depth_hist_combined <- renderPlot({
-    
-    plots$depth_hist_combined
-    
-  })
-  
-  
-  
-  # # Set priorities so plots render before map
+  # If you want to set priorities so plots render before map:
   # outputOptions(output, "map_deployments", priority = 5)
   # outputOptions(output, "depth_hist", priority = 1)
   # outputOptions(output, "date_hist", priority = 2)
-  
 }
