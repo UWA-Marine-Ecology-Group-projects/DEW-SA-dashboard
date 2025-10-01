@@ -103,15 +103,27 @@ update_points_with_numeric_legend <- function(map_id, data, fill_cols, legend_pa
 }
 
 # bubble legend (three sizes) - uses your existing add_legend helper
-add_bubble_legend <- function(map, max_val, title) {
-  add_legend(
-    map,
-    colors = c("white", "#f89f00", "#f89f00"),
-    labels = c(0, round(max_val / 2), max_val),
-    sizes  = c(5, 20, 40),
-    title  = title,
-    group  = "Sampling locations"
-  )
+# add_bubble_legend <- function(map, max_val, title) {
+#   add_legend(
+#     map,
+#     colors = c("white", "#f89f00", "#f89f00"),
+#     labels = c(0, round(max_val / 2), max_val),
+#     sizes  = c(5, 20, 40),
+#     title  = title,
+#     group  = "Sampling locations"
+#   )
+# }
+
+add_bubble_legend <- function(map, max_val, title, layerId = "bubbleLegendSpecies") {
+  leaflet::removeControl(map, layerId) %>%
+    add_legend(
+      colors = c("white", "#f89f00", "#f89f00"),
+      labels = c(0, round(max_val / 2), max_val),
+      sizes  = c(5, 20, 40),
+      title  = title,
+      group  = "Sampling locations",
+      layerId = layerId
+    )
 }
 
 # ------------------------------ server ---------------------------------------
@@ -123,6 +135,7 @@ server <- function(input, output, session) {
   output$map_surveys     <- renderLeaflet(base_map())
   output$map_combined     <- renderLeaflet(base_map(current_zoom = 7))
   output$species_map     <- renderLeaflet(base_map())
+  output$species_map_rls     <- renderLeaflet(base_map())
   output$assemblage_map  <- renderLeaflet(base_map())
   output$assemblage_map_rls  <- renderLeaflet(base_map())
   
@@ -191,7 +204,7 @@ server <- function(input, output, session) {
   observe({
     req(input$species_select)
     
-    data <- dataframes$bubble_data_200 %>%
+    data <- dataframes$bubble_data %>%
       dplyr::filter(display_name %in% input$species_select) %>%
       dplyr::full_join(dataframes$deployment_locations) %>%   # keep your original join semantics
       tidyr::replace_na(list(count = 0))
@@ -202,9 +215,8 @@ server <- function(input, output, session) {
     equalzero <- data %>% dplyr::filter(count == 0) %>% sf::st_as_sf()
     
     map <- leafletProxy("species_map") %>%
-      clearGroup("Sampling locations") 
-    
-    map <- add_bubble_legend(map, max_val = max_ab, title = "Abundance")
+      clearGroup("Sampling locations") %>%
+      add_bubble_legend(max_val = max_ab, title = "Abundance", layerId = "bubbleLegendSpecies")
     
     if (nrow(overzero)) {
       overzero$radius <- 10 + (overzero$count / max_ab) * 50
@@ -237,6 +249,62 @@ server <- function(input, output, session) {
     }
   })
   
+  # ---- species bubble map RLS ----------------------------------------------------
+  # Map canvas is rendered above via base_map(); here we add bubbles & legend.
+  observe({
+    req(input$species_select)
+    
+    data <- dataframes$bubble_data_rls %>%
+      dplyr::filter(display_name %in% input$species_select) %>%
+      dplyr::full_join(dataframes$deployment_locations_rls) %>%   # keep your original join semantics
+      tidyr::replace_na(list(count = 0))
+    
+    max_ab <- ifelse(nrow(data) > 0, max(data$count, na.rm = TRUE), 1)
+    
+    overzero  <- dplyr::filter(data, count > 0) %>% sf::st_as_sf()
+    equalzero <- data %>% dplyr::filter(count == 0) %>% sf::st_as_sf()
+    
+    map <- leafletProxy("species_map_rls") %>%
+      clearGroup("Sampling locations") %>%
+      add_bubble_legend(max_val = max_ab, title = "Abundance", layerId = "bubbleLegendSpecies")
+    
+    if (nrow(overzero)) {
+      overzero$radius <- 10 + (overzero$count / max_ab) * 50
+      
+      map <- map %>%
+        leafgl::addGlPoints(
+          data = overzero,
+          fillColor = "#f89f00",
+          fillOpacity = 1,
+          weight = 1,
+          radius = overzero$radius,
+          popup = as.character(overzero$count),
+          group = "Sampling locations",
+          pane = "points"
+        )
+    }
+    
+    if (nrow(equalzero)) {
+      map <- map %>%
+        leafgl::addGlPoints(
+          data = equalzero,
+          fillColor = "white",
+          fillOpacity = 0.5,
+          weight = 1,
+          radius = 10,
+          popup = as.character(equalzero$count),
+          group = "Sampling locations",
+          pane = "points"
+        )
+    }
+  })
+  
+  # sync after rendering
+  observe({
+    leafletProxy("species_map") %>%
+      leaflet.extras2::addLeafletsync(c("species_map", "species_map_rls"))
+  })
+
   # ---- assemblage bubble map -------------------------------------------------
   observe({
     req(input$assemblage)
@@ -398,7 +466,7 @@ server <- function(input, output, session) {
   })
   
   output$length_histogram <- renderPlot({
-    length <- dataframes$length_200_with_jurisdiction %>%
+    length <- dataframes$length_with_jurisdiction %>%
       dplyr::filter(display_name %in% input$species_length)
     
     ggplot(length, aes(x = length_mm)) +
@@ -413,7 +481,7 @@ server <- function(input, output, session) {
   
   # Length histogram ----
   output$length_histogram_density <- renderPlot({
-    length <- dataframes$length_200_with_jurisdiction %>%
+    length <- dataframes$length_with_jurisdiction %>%
       dplyr::filter(display_name %in% input$species_length)
     
     ggplot(length, aes(x = length_mm, fill = status)) +

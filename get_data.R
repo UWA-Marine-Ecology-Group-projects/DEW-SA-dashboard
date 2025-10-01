@@ -306,7 +306,7 @@ mean_lat <- mean(metadata$latitude_dd)
 
 # Deployment locations RLS ----
 deployment_locations_rls <- rls_metadata %>%
-  distinct(location, site_code, site_name, latitude_dd, longitude_dd, survey_date, depth_m) %>%
+  distinct(survey_id, location, site_code, site_name, latitude_dd, longitude_dd, survey_date, depth_m) %>%
   dplyr::mutate(year = as.numeric(str_sub(survey_date, 1, 4))) %>%
   dplyr::mutate(popup = paste0(
     "<b>Location:</b> ", location, "<br/>",
@@ -314,7 +314,7 @@ deployment_locations_rls <- rls_metadata %>%
     "<b>Site name:</b> ", site_name, "<br/>",
     "<b>Year:</b> ", year, "<br/>",
     "<b>Depth (m):</b> ", round(depth_m, 1))) %>%
-  dplyr::select(depth_m, popup, longitude_dd, latitude_dd, year)
+  dplyr::select(survey_id, depth_m, popup, longitude_dd, latitude_dd, year)
 
 deployment_locations_rls = st_as_sf(deployment_locations_rls, coords = c("longitude_dd", "latitude_dd"))
 
@@ -355,24 +355,57 @@ top_species_rls
 top_species_combined <- bind_rows(top_species, top_species_rls)
 
 # Top 200 species names ----
-top_200_species_names <- count %>%
+top_species_names <- count %>%
   dplyr::group_by(family, genus, species) %>%
   dplyr::summarise(total_number = sum(count)) %>%
   dplyr::ungroup() %>%
   dplyr::left_join(species_list) %>%
   dplyr::select(family, genus, species, australian_common_name, total_number) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
+  ungroup() %>%
   dplyr::slice_max(order_by = total_number, n = 200) %>%
   dplyr::pull(display_name)
 
-# Top 200 bubble data ----
-bubble_data_200 <- count %>%
+top_species_bruv <- count %>%
+  dplyr::group_by(family, genus, species) %>%
+  dplyr::summarise(total_number = sum(count)) %>%
+  dplyr::ungroup() %>%
+  dplyr::left_join(species_list) %>%
+  dplyr::select(family, genus, species, australian_common_name, total_number) %>%
+  dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")"))
+
+top_species_rls <- rls_count %>%
+  dplyr::group_by(family, genus, species) %>%
+  dplyr::summarise(total_number = sum(count)) %>%
+  dplyr::ungroup() %>%
+  dplyr::left_join(species_list) %>%
+  dplyr::select(family, genus, species, australian_common_name, total_number) %>%
+  dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")"))
+
+top_species_names_combined <- bind_rows(top_species_bruv, top_species_rls) %>%
+  dplyr::group_by(display_name, family, genus, species) %>%
+  dplyr::summarise(total_number = sum(total_number)) %>%
+  ungroup() %>%
+  dplyr::slice_max(order_by = total_number, n = 500) %>%
+  dplyr::pull(display_name)
+
+# Bubble data ----
+bubble_data <- count %>%
   dplyr::left_join(metadata) %>%
   dplyr::left_join(species_list) %>%
   dplyr::select(sample_url, family, genus, species, count, australian_common_name) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  dplyr::filter(display_name %in% c(top_200_species_names)) %>%
+  # dplyr::filter(display_name %in% c(top_species_names)) %>%
   dplyr::select(sample_url, display_name, count) %>%
+  dplyr::glimpse()
+
+bubble_data_rls <- rls_count %>%
+  dplyr::left_join(rls_metadata) %>%
+  dplyr::left_join(species_list) %>%
+  dplyr::select(survey_id, family, genus, species, count, australian_common_name) %>%
+  dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
+  # dplyr::filter(display_name %in% c(top_species_names)) %>%
+  dplyr::select(survey_id, display_name, count) %>%
   dplyr::glimpse()
 
 # Total abundance and species richness bubble data ----
@@ -435,8 +468,8 @@ foa_genus_codes <- readRDS("data/genus_foa_codes.RDS") %>%
   dplyr::select(display_name, url)
 
 foa_codes <- bind_rows(foa_species_codes, foa_genus_codes) %>%
-  dplyr::select(display_name, url) %>%
-  dplyr::filter(display_name %in% c(top_200_species_names))
+  dplyr::select(display_name, url) #%>%
+  #dplyr::filter(display_name %in% c(top_species_names))
 
 foa_codes <- data.table::data.table(foa_codes)
 
@@ -445,7 +478,7 @@ length_200 <- length %>%
   dplyr::left_join(species_list) %>%
   # dplyr::select(family, genus, species, australian_common_name, total_number) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  dplyr::filter(display_name %in% c(top_200_species_names)) %>%
+  # dplyr::filter(display_name %in% c(top_species_names)) %>%
   left_join(metadata %>% dplyr::select(sample_url, sample, campaignid, status, longitude_dd, latitude_dd)) %>%
   dplyr::select(sample_url, display_name, count, length_mm, status, longitude_dd, latitude_dd)
 
@@ -458,13 +491,13 @@ length_sf <- length_200 %>%
 
 length_sf <- st_transform(length_sf, st_crs(coastal_waters))
 
-length_200_with_jurisdiction <- st_join(length_sf, coastal_waters %>% select(catlim)) %>%
+length_with_jurisdiction <- st_join(length_sf, coastal_waters %>% select(catlim)) %>%
   rename(jurisdiction = catlim) %>%
   replace_na(list(jurisdiction = "Federal Waters"))
 
-unique(length_200_with_jurisdiction$jurisdiction)
+unique(length_with_jurisdiction$jurisdiction)
 
-names(length_200_with_jurisdiction)
+names(length_with_jurisdiction)
 
 
 # Plots ----
@@ -624,7 +657,8 @@ values <- structure(
     mean_depth = mean_depth,
     mean_lon = mean_lon,
     mean_lat = mean_lat,
-    top_200_species_names = top_200_species_names,
+    # top_species_names = top_species_names,
+    top_species_names_combined = top_species_names_combined,
     min_year = min_year,
     max_year = max_year,
     deployments_relief = deployments_relief,
@@ -641,7 +675,7 @@ values <- structure(
     mean_depth_rls = mean_depth_rls,
     mean_lon_rls = mean_lon_rls,
     mean_lat_rls = mean_lat_rls,
-    # top_200_species_names_rls = top_200_species_names_rls,
+    # top_species_names_rls = top_species_names_rls,
     min_year_rls = min_year_rls,
     max_year_rls = max_year_rls
   ),
@@ -656,17 +690,17 @@ dataframes <- structure(
     top_species_combined = top_species_combined,
     deployment_locations = deployment_locations,
     metric_bubble_data = metric_bubble_data,
-    bubble_data_200 = bubble_data_200,
+    bubble_data = bubble_data,
     foa_codes = foa_codes,
-    length_200_with_jurisdiction = length_200_with_jurisdiction,
+    length_with_jurisdiction = length_with_jurisdiction,
     simple_metadata = simple_metadata,
     
     
     deployment_locations_rls = deployment_locations_rls,
-    metric_bubble_data_rls = metric_bubble_data_rls
-    # bubble_data_200 = bubble_data_200,
-    # length_200_with_jurisdiction = length_200_with_jurisdiction,
-    #simple_metadata_rls = simple_metadata_rls
+    metric_bubble_data_rls = metric_bubble_data_rls,
+    bubble_data_rls = bubble_data_rls,
+    rls_simple_metadata = rls_simple_metadata
+    # length_with_jurisdiction = length_with_jurisdiction,
   ),
   class = "data"
 )

@@ -25,13 +25,21 @@ load("app_data/dataframes.Rdata")
 load("app_data/plots.Rdata")
 
 # Spatial files for maps ----
-commonwealth.mp <- readRDS("app_data/spatial/commonwealth.mp.RDS")
+commonwealth.mp <- readRDS("app_data/spatial/commonwealth.mp.RDS") %>%
+  st_as_sf() %>%
+  dplyr::filter(NetName %in% "South-west") %>%
+  dplyr::filter(ResName %in% c("Great Australian Bight",
+                               "Southern Kangaroo Island",
+                               "Western Eyre",
+                               "Western Kangaroo Island"))
+
+# unique(commonwealth.mp$NetName)
 # state.mp <- readRDS("app_data/spatial/state.mp.RDS")
 
 state.mp <- readRDS("app_data/spatial/sa.state.mp.RDS")
 
-state.mp  <- rmapshaper::ms_simplify(state.mp, keep = 0.5, keep_shapes = TRUE)
-commonwealth.mp <- rmapshaper::ms_simplify(commonwealth.mp, keep = 0.5, keep_shapes = TRUE)
+# state.mp  <- rmapshaper::ms_simplify(state.mp, keep = 0.5, keep_shapes = TRUE)
+# commonwealth.mp <- rmapshaper::ms_simplify(commonwealth.mp, keep = 0.5, keep_shapes = TRUE)
 
 # Pallettes for maps ----
 state.pal <- colorFactor(c("#f18080", # Restricted Access Zone (RAZ)
@@ -83,7 +91,7 @@ ggplot_theme <-
   )
 
 # Legend for leaflet ----
-add_legend <- function(map, colors, labels, sizes, opacity = 1, group, title) { #map, 
+add_legend <- function(map, colors, labels, sizes, opacity = 1, group, title, layerId) { #map, 
   colorAdditions <- glue::glue(
     "{colors}; border-radius: 50%; width:{sizes}px; height:{sizes}px"
   )
@@ -99,7 +107,8 @@ add_legend <- function(map, colors, labels, sizes, opacity = 1, group, title) { 
                        opacity = opacity,
                        title = title,
                        position = "topright",
-                       group = group
+                       group = group,
+                       layerId = layerId
     )
   )
 }

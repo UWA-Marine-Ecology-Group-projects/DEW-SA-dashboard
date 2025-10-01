@@ -306,10 +306,9 @@ card(
 ),
 
 card(
-  min_height = 650,
+  min_height = 700,
   full_screen = TRUE,
   card_header("Spatial distribution of assemblage metrics"),
-  
   shinyWidgets::pickerInput(
     inputId = "assemblage",
     label = "Choose an assemblage metric:",
@@ -320,59 +319,104 @@ card(
     options = list(`actions-box` = TRUE, `live-search` = FALSE, `dropup-auto` = FALSE)
   ),
   
-  layout_column_wrap(
-    width = 1/2,
-    
-    # leafsync::sync(
-      leafletOutput("assemblage_map", height = "400px"),
-      leafletOutput("assemblage_map_rls", height = "400px")#,
-      # ncol = 2
-    # )
-    
-    
-    # card(
-    #   card_header("stereo-BRUVs"),
-    # leafletOutput("assemblage_map", height = "400px")
-    # ),
-    # card(
-    #   card_header("UVC"),
-    # leafletOutput("assemblage_map_rls", height = "400px")
-    # )
+  card_body(fillable = TRUE,
+            min_height = 600,
+            layout_column_wrap(
+              width = 1/2,
+              div(
+                h4("Stereo-BRUVs"),
+                leafletOutput("assemblage_map", height = "60vh"
+                )
+              ),
+              div(
+                h4("UVC"),
+                leafletOutput("assemblage_map_rls", height = "60vh"
+                )
+              )
+            )
   )
 ),
 
+# card(
+#   leafletOutput("assemblage_map"
+#                 )
+# ),
+
+# card(
+#   min_height = 500,
+#   full_screen = TRUE,
+#   card_header("Spatial distribution of assemblage metrics"),
+# 
+#   # fixed-height controls
+#   card_body(
+#     shinyWidgets::pickerInput(
+#       inputId = "assemblage",
+#       label   = "Choose an assemblage metric:",
+#       width   = "100%",
+#       choices = c("Total abundance", "Species richness"),
+#       selected = "Total abundance",
+#       multiple = FALSE,
+#       options = list(`actions-box` = TRUE, `live-search` = FALSE, `dropup-auto` = FALSE)
+#     )
+#   ),
+# 
+#   # fill-height area (works in fullscreen too)
+#   card_body_fill(
+#     bslib::layout_columns(
+#       col_widths = c(6, 6),   # or 7/5 for ~60/40
+#       fill = TRUE,            # <- make row fill vertically
+#       gap  = "1rem",
+# 
+#       # left column
+#       div(class = "d-flex flex-column h-100",
+#           h4("Stereo-BRUVs", class = "mb-2"),
+#           div(class = "flex-fill",
+#               leafletOutput("assemblage_map", height = "100%")
+#           )
+#       ),
+# 
+#       # right column
+#       div(class = "d-flex flex-column h-100",
+#           h4("UVC", class = "mb-2"),
+#           div(class = "flex-fill",
+#               leafletOutput("assemblage_map_rls", height = "100%")
+#           )
+#       )
+#     )
+#   )
 # ),
 
 # Fourth Row - Species map and iframe
 card(full_screen = TRUE,
+     card_header("Investigate a species abundance data"),
      
-     max_height = 700,
+     max_height = 750,
+     shinyWidgets::pickerInput(
+       inputId = "species_select",
+       label = "Choose a species:",
+       width = "100%",
+       choices = c(values$top_species_names_combined),
+       multiple = FALSE,
+       selected = values$top_species_names_combined[1],
+       options = list(`actions-box` = TRUE, `live-search` = TRUE, `dropup-auto` = TRUE)
+     ),
      
-     layout_column_wrap(
-       width = 1/2,
-       
-       card(
-         full_screen = TRUE,
-         card_header("Investigate a species abundance data"),
-         
-         shinyWidgets::pickerInput(
-           inputId = "species_select",
-           label = "Choose a species:",
-           width = "100%",
-           choices = c(values$top_200_species_names),
-           multiple = FALSE,
-           selected = values$top_200_species_names[1],
-           options = list(`actions-box` = TRUE, `live-search` = TRUE, `dropup-auto` = TRUE)
-         ),
-         
-         leafletOutput("species_map", height = "400px")
+     layout_columns(
+       # width = 1/3,
+       col_widths = c(4, 4, 4),  # 8/12 = ~66% and 4/12 = ~33% (close to 60/40)
+       div(
+         h4("Stereo-BRUVs"),
+         leafletOutput("species_map", height = "500px")
        ),
        
-       card(
-         full_screen = TRUE,
-         htmlOutput("iframe")
-       )
-     )),
+       div(
+         h4("UVC"),
+         leafletOutput("species_map_rls", height = "500px")
+       ),
+       
+       htmlOutput("iframe")
+     )
+),
 
 # # Fifth Row - Histograms
 card(
@@ -382,9 +426,9 @@ card(
     inputId = "species_length",
     label = "Choose a species:",
     width = "100%",
-    choices = c(values$top_200_species_names),
+    choices = c(values$top_species_names_combined),
     multiple = FALSE,
-    selected = values$top_200_species_names[1],
+    selected = values$top_species_names_combined[1],
     options = list(`actions-box` = TRUE, `live-search` = TRUE, `dropup-auto` = TRUE)
   ),
   layout_column_wrap(
