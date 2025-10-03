@@ -62,6 +62,56 @@ ggplot_theme <-
     plot.title = ggplot2::element_text(color = "black", size = 12, face = "bold.italic")
   )
 
+# Read in marineparks ----
+state.mp <- read_sf("data/spatial/CONSERVATION_StateMarineParkNW_Zoning_GDA94.shp") %>%
+  clean_names() %>%
+  dplyr::mutate(zone = case_when(
+    zone_type %in% "HPZ" ~ "Habitat Protection",
+    zone_type %in% "SZ" ~ "Sanctuary (no-take)",
+    zone_type %in% "GMUZ" ~ "General Managed Use",
+    zone_type %in% "RAZ" ~ "Restricted Access (no-take)",
+    zone_type %in% "RAZ_L" ~ "Restricted Access (no-take)",
+    zone_type %in% "RAZ_D" ~ "Restricted Access (no-take)"
+  )) %>% 
+  dplyr::mutate(name = paste0(resname, ". Zone: ", zone_name, " (", zone, ")"))
+
+unique(state.mp$zone)
+unique(state.mp$name)
+
+state.mp$zone <- fct_relevel(state.mp$zone, 
+                             "Restricted Access (no-take)", 
+                             "Sanctuary (no-take)", 
+                             "Habitat Protection", 
+                             "General Managed Use")
+
+sa.state.mp <- st_cast(state.mp, "POLYGON")
+
+unique(sa.state.mp$zone)
+
+saveRDS(sa.state.mp, "app_data/spatial/sa.state.mp.RDS")
+
+# Test leaflet maps
+
+state.pal <- colorFactor(c("#f18080", # Restricted Access Zone (RAZ)
+                           "#69a802", # Sanctuary Zone (SZ)
+                           "#799CD2", # Habitat Protection (HPZ)
+                           "#BED4EE" # General Managed Use Zone (GMUZ)
+), sa.state.mp$zone)
+
+leaflet() %>%
+  addTiles(options = tileOptions(minZoom = 4, maxZoom = 10)) %>%
+  setView(lng = 135, lat = -35.1, zoom = 6) %>%
+  
+  # Static polygon layers
+  leafgl::addGlPolygons(data = sa.state.mp,
+                        color = "black",
+                        weight = 1,
+                        fillColor = ~state.pal(zone),
+                        fillOpacity = 0.8,
+                        group = "State Marine Parks",
+                        popup = sa.state.mp$name
+  )
+
 
 # Set your API token to access GlobalArchive data shared with you ----
 # It is extremely important that you keep your API token out of your scripts, and github repository!
@@ -395,7 +445,6 @@ bubble_data <- count %>%
   dplyr::left_join(species_list) %>%
   dplyr::select(sample_url, family, genus, species, count, australian_common_name) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  # dplyr::filter(display_name %in% c(top_species_names)) %>%
   dplyr::select(sample_url, display_name, count) %>%
   dplyr::glimpse()
 
@@ -404,7 +453,6 @@ bubble_data_rls <- rls_count %>%
   dplyr::left_join(species_list) %>%
   dplyr::select(survey_id, family, genus, species, count, australian_common_name) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  # dplyr::filter(display_name %in% c(top_species_names)) %>%
   dplyr::select(survey_id, display_name, count) %>%
   dplyr::glimpse()
 
@@ -468,25 +516,57 @@ foa_genus_codes <- readRDS("data/genus_foa_codes.RDS") %>%
   dplyr::select(display_name, url)
 
 foa_codes <- bind_rows(foa_species_codes, foa_genus_codes) %>%
-  dplyr::select(display_name, url) #%>%
-  #dplyr::filter(display_name %in% c(top_species_names))
+  dplyr::select(display_name, url) 
 
 foa_codes <- data.table::data.table(foa_codes)
 
+# Get rls status ----
+rls_metadata_sf <- rls_metadata %>%
+  st_as_sf(coords = c("longitude_dd", "latitude_dd"), crs = 4326)
+
+rls_metadata_sf <- st_transform(rls_metadata_sf, st_crs(state.mp))
+
+sf_use_s2(FALSE)
+
+metadata_with_status <- st_join(rls_metadata_sf, state.mp %>% st_cast("POLYGON")) %>%
+  dplyr::mutate(status = case_when(
+    zone_type %in% c("SZ", "RAZ_L") ~ "No-Take",
+    .default = "Fished"
+  )) %>%
+  mutate(sample_url = as.character(survey_id)) %>%
+  glimpse()
+
+unique(metadata_with_status$status)
+
 # length of top 200 ----
-length_200 <- length %>%
+format_rls_length <- rls_length %>% 
+  mutate(sample_url = as.character(survey_id)) %>%
+  dplyr::rename(latitude_dd = latitude) %>%
+  dplyr::rename(longitude_dd = longitude) %>%
   dplyr::left_join(species_list) %>%
-  # dplyr::select(family, genus, species, australian_common_name, total_number) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  # dplyr::filter(display_name %in% c(top_species_names)) %>%
+  dplyr::select(sample_url, display_name, count, length_mm, longitude_dd, latitude_dd) %>%
+  dplyr::mutate(method = "UVC") %>%
+  left_join(metadata_with_status)# TODO add status,  
+
+length_combined <- length %>%
+  dplyr::left_join(species_list) %>%
+  dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
   left_join(metadata %>% dplyr::select(sample_url, sample, campaignid, status, longitude_dd, latitude_dd)) %>%
-  dplyr::select(sample_url, display_name, count, length_mm, status, longitude_dd, latitude_dd)
+  dplyr::select(sample_url, display_name, count, length_mm, status, longitude_dd, latitude_dd) %>%
+  dplyr::mutate(method = "stereo-BRUVs") %>%
+  bind_rows(format_rls_length)
+
+test <- length_combined %>% filter(is.na(latitude_dd))
+
+
+
 
 # Add state and zones to length data for histograms -----
 coastal_waters <- st_read("data/spatial/Coastal_Waters_areas_(AMB2020).shp")
 # marine_parks <- st_read("data/spatial/shapefiles/western-australia_marine-parks-all.shp")
 
-length_sf <- length_200 %>%
+length_sf <- length_combined %>%
   st_as_sf(coords = c("longitude_dd", "latitude_dd"), crs = 4326)
 
 length_sf <- st_transform(length_sf, st_crs(coastal_waters))
@@ -499,7 +579,6 @@ unique(length_with_jurisdiction$jurisdiction)
 
 names(length_with_jurisdiction)
 
-
 # Plots ----
 date_hist <- simple_metadata |>
   mutate(year = format(date_time, "%Y")) |>
@@ -508,7 +587,6 @@ date_hist <- simple_metadata |>
   geom_bar(stat = "identity", fill = "#0c3978", color = "black") +
   xlab("Year") +
   ylab("Number of deployments") +
-  # ggtitle("Deployments by Year") +
   ggplot_theme +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
@@ -519,7 +597,6 @@ date_hist_rls <- rls_simple_metadata |>
   geom_bar(stat = "identity", fill = "#0c3978", color = "black") +
   xlab("Year") +
   ylab("Number of surveys") +
-  # ggtitle("Deployments by Year") +
   ggplot_theme +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
@@ -542,9 +619,7 @@ depth_hist_rls <- ggplot(rls_simple_metadata, aes(x = depth_m)) +
   ylab("Number of surveys") +
   ggplot_theme
 
-
 # Combined plots ----
-# TODO on Wednesday :)
 bruv_years <- simple_metadata |>
   mutate(year = as.numeric(format(date_time, "%Y"))) |>
   count(year) |>
@@ -561,7 +636,6 @@ date_hist_combined <- bind_rows(bruv_years, rls_years)|>
   xlab("Year") +
   ylab("Number of deployments") +
   scale_fill_manual(values = c("#f89f00", "#0c3978")) +
-  # ggtitle("Deployments by Year") +
   ggplot_theme +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
@@ -570,19 +644,6 @@ date_hist_combined
 # Combined depth plots ----
 depth_combined <- bind_rows(simple_metadata %>% mutate(method = "stereo-BRUVs"), 
                             rls_simple_metadata %>% mutate(method = "UVC"))
-
-# bruv_depth <- ggplot(simple_metadata, aes(x = depth_m)) +
-#   geom_histogram(binwidth = 5, fill = "#0c3978", color = "black") +
-#   xlab("Depth (m)") +
-#   ylab("Number of deployments") +
-#   scale_x_continuous(
-#     breaks = seq(
-#       floor(min(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
-#       ceiling(max(simple_metadata$depth_m, na.rm = TRUE) / 50) * 50,
-#       by = 50
-#     )
-#   ) +
-#   ggplot_theme
 
 depth_hist_combined <- ggplot(depth_combined, aes(x = depth_m, fill = method)) +
   geom_histogram(binwidth = 5, color = "black") +
@@ -593,55 +654,7 @@ depth_hist_combined <- ggplot(depth_combined, aes(x = depth_m, fill = method)) +
 
 depth_hist_combined
 
-# Read in marineparks ----
-state.mp <- read_sf("data/spatial/CONSERVATION_StateMarineParkNW_Zoning_GDA94.shp") %>%
-  clean_names() %>%
-  dplyr::mutate(zone = case_when(
-    zone_type %in% "HPZ" ~ "Habitat Protection",
-    zone_type %in% "SZ" ~ "Sanctuary (no-take)",
-    zone_type %in% "GMUZ" ~ "General Managed Use",
-    zone_type %in% "RAZ" ~ "Restricted Access (no-take)",
-    zone_type %in% "RAZ_L" ~ "Restricted Access (no-take)",
-    zone_type %in% "RAZ_D" ~ "Restricted Access (no-take)"
-  )) %>% 
-  dplyr::mutate(name = paste0(resname, ". Zone: ", zone_name, " (", zone, ")"))
 
-unique(state.mp$zone)
-unique(state.mp$name)
-
-state.mp$zone <- fct_relevel(state.mp$zone, 
-                             "Restricted Access (no-take)", 
-                             "Sanctuary (no-take)", 
-                             "Habitat Protection", 
-                             "General Managed Use")
-
-sa.state.mp <- st_cast(state.mp, "POLYGON")
-
-unique(sa.state.mp$zone)
-
-saveRDS(sa.state.mp, "app_data/spatial/sa.state.mp.RDS")
-
-# Test leaflet maps
-
-state.pal <- colorFactor(c("#f18080", # Restricted Access Zone (RAZ)
-                           "#69a802", # Sanctuary Zone (SZ)
-                           "#799CD2", # Habitat Protection (HPZ)
-                           "#BED4EE" # General Managed Use Zone (GMUZ)
-), sa.state.mp$zone)
-
-leaflet() %>%
-  addTiles(options = tileOptions(minZoom = 4, maxZoom = 10)) %>%
-  setView(lng = 135, lat = -35.1, zoom = 6) %>%
-  
-  # Static polygon layers
-  leafgl::addGlPolygons(data = sa.state.mp,
-                        color = "black",
-                        weight = 1,
-                        fillColor = ~state.pal(zone),
-                        fillOpacity = 0.8,
-                        group = "State Marine Parks",
-                        popup = sa.state.mp$name
-                        )
 
 
 # Create final dataframes and save ----
@@ -657,14 +670,11 @@ values <- structure(
     mean_depth = mean_depth,
     mean_lon = mean_lon,
     mean_lat = mean_lat,
-    # top_species_names = top_species_names,
     top_species_names_combined = top_species_names_combined,
     min_year = min_year,
     max_year = max_year,
     deployments_relief = deployments_relief,
     deployments_benthos = deployments_benthos,
-    
-    
     number_of_deployments_rls = number_of_deployments_rls,
     number_of_fish_rls = number_of_fish_rls,
     number_of_nonfish_species_rls = number_of_nonfish_species_rls,
@@ -675,7 +685,6 @@ values <- structure(
     mean_depth_rls = mean_depth_rls,
     mean_lon_rls = mean_lon_rls,
     mean_lat_rls = mean_lat_rls,
-    # top_species_names_rls = top_species_names_rls,
     min_year_rls = min_year_rls,
     max_year_rls = max_year_rls
   ),

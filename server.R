@@ -6,28 +6,6 @@ base_map <- function(max_zoom = 11, current_zoom = 6) {
     setView(lng = 135.3, lat = -35.1, current_zoom) |>
     addMapPane("polys",  zIndex = 410) |>
     addMapPane("points", zIndex = 420) |>
-    # # Static polygon layers
-    # leafgl::addGlPolygons(
-    #   data = state.mp,
-    #   color = "black",
-    #   weight = 1,
-    #   fillColor = ~state.pal(zone),
-    #   fillOpacity = 0.8,
-    #   group = "State Marine Parks",
-    #   popup = state.mp$name,
-    #   pane = "polys"
-    # ) |>
-    # leafgl::addGlPolygons(
-    #   data = commonwealth.mp,
-    #   color = "black",
-    #   weight = 1,
-    #   fillColor = ~commonwealth.pal(zone),
-    #   fillOpacity = 0.8,
-    #   group = "Australian Marine Parks",
-    #   popup = commonwealth.mp$ZoneName,
-    #   pane = "polys"
-    # ) |>
-    
     # Use regular polygons for static layers:
     addPolygons(
       data = state.mp,                # or state.mp_s if you simplified
@@ -102,18 +80,6 @@ update_points_with_numeric_legend <- function(map_id, data, fill_cols, legend_pa
     )
 }
 
-# bubble legend (three sizes) - uses your existing add_legend helper
-# add_bubble_legend <- function(map, max_val, title) {
-#   add_legend(
-#     map,
-#     colors = c("white", "#f89f00", "#f89f00"),
-#     labels = c(0, round(max_val / 2), max_val),
-#     sizes  = c(5, 20, 40),
-#     title  = title,
-#     group  = "Sampling locations"
-#   )
-# }
-
 add_bubble_legend <- function(map, max_val, title, layerId = "bubbleLegendSpecies") {
   leaflet::removeControl(map, layerId) %>%
     add_legend(
@@ -124,6 +90,12 @@ add_bubble_legend <- function(map, max_val, title, layerId = "bubbleLegendSpecie
       group  = "Sampling locations",
       layerId = layerId
     )
+}
+
+filter_by_park <- function(df, park, park_col = "park") {
+  if (is.null(park)) return(df)                    # statewide
+  if (!park_col %in% names(df)) return(df)         # fallback if missing
+  dplyr::filter(df, .data[[park_col]] %in% park)
 }
 
 # ------------------------------ server ---------------------------------------
@@ -469,9 +441,11 @@ server <- function(input, output, session) {
     length <- dataframes$length_with_jurisdiction %>%
       dplyr::filter(display_name %in% input$species_length)
     
-    ggplot(length, aes(x = length_mm)) +
-      geom_histogram(binwidth = 10, fill = "#0c3978", color = "black") +
+    ggplot(length, aes(x = length_mm, fill = method)) +
+      geom_histogram(binwidth = input$binwidth, #fill = "#0c3978", 
+                     color = "black") +
       facet_grid(status ~ jurisdiction, scales = "free_y") +
+      scale_fill_manual(values = c("#f89f00", "#0c3978")) +
       ggplot_theme +
       labs(
         x = "Length (mm)",
@@ -485,10 +459,11 @@ server <- function(input, output, session) {
       dplyr::filter(display_name %in% input$species_length)
     
     ggplot(length, aes(x = length_mm, fill = status)) +
-      geom_histogram(aes(y = ..density..), binwidth = 10, fill = "#0c3978",
+      geom_histogram(aes(y = ..density.., fill = method), binwidth = input$binwidth, #fill = "#0c3978",
                      color = "black", position = "identity") +
       facet_grid(status ~ jurisdiction, scales = "free_y") +
       labs(x = "Length (mm)", y = "Proportion (Density)") +
+      scale_fill_manual(values = c("#f89f00", "#0c3978")) +
       ggplot_theme
   })
   
@@ -499,9 +474,5 @@ server <- function(input, output, session) {
   output$date_hist_rls       <- renderPlot({ plots$date_hist_rls })
   output$date_hist_combined  <- renderPlot({ plots$date_hist_combined })
   output$depth_hist_combined <- renderPlot({ plots$depth_hist_combined })
-  
-  # If you want to set priorities so plots render before map:
-  # outputOptions(output, "map_deployments", priority = 5)
-  # outputOptions(output, "depth_hist", priority = 1)
-  # outputOptions(output, "date_hist", priority = 2)
+
 }

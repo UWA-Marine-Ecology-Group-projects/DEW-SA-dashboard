@@ -422,6 +422,11 @@ card(full_screen = TRUE,
 card(
   full_screen = TRUE,
   max_height = 800,
+  
+  layout_column_wrap(
+    width = 1/2,
+    
+  
   shinyWidgets::pickerInput(
     inputId = "species_length",
     label = "Choose a species:",
@@ -431,12 +436,16 @@ card(
     selected = values$top_species_names_combined[1],
     options = list(`actions-box` = TRUE, `live-search` = TRUE, `dropup-auto` = TRUE)
   ),
+  
+  numericInput("binwidth", value = 50, min = 0, max = 1000, label = "Choose binwidth (mm):")
+  ),
+  
   layout_column_wrap(
-    width = 1,
+    width = 1/2,
     card(card_header("Length frequency histogram"),
-         plotOutput("length_histogram", height = "400px")),
+         plotOutput("length_histogram", height = "600px")),
     card(card_header("Normalised length frequency histogram"),
-         plotOutput("length_histogram_density", height = "400px"))
+         plotOutput("length_histogram_density", height = "600px"))
   )
 )
   ),
