@@ -33,6 +33,8 @@ library(devtools)
 library(sf)
 library(googlesheets4)
 
+sf_use_s2(FALSE)
+
 # Theme for plotting ----
 ggplot_theme <- 
   ggplot2::theme_bw() +
@@ -73,7 +75,7 @@ state.mp <- read_sf("data/spatial/CONSERVATION_StateMarineParkNW_Zoning_GDA94.sh
     zone_type %in% "RAZ_L" ~ "Restricted Access (no-take)",
     zone_type %in% "RAZ_D" ~ "Restricted Access (no-take)"
   )) %>% 
-  dplyr::mutate(name = paste0(resname, ". Zone: ", zone_name, " (", zone, ")"))
+  dplyr::mutate(name = paste0(resname, ". Zone: ", zone_name, " (", zone, ")")) 
 
 unique(state.mp$zone)
 unique(state.mp$name)
@@ -208,6 +210,27 @@ fish_species <- species_list %>%
 
 unique(species_list$class_value)
 
+# Fix locations in the metadata ----
+metadata_sf <- metadata %>%
+  st_as_sf(coords = c("longitude_dd", "latitude_dd"), crs = 4326)
+
+metadata_sf <- st_transform(metadata_sf, st_crs(state.mp))
+metadata_locs <- st_join(metadata_sf, state.mp %>% st_cast("POLYGON")) %>%
+  dplyr::mutate(location = resname) %>%
+  glimpse()
+
+unique(metadata_locs$location)
+
+rls_metadata_sf <- rls_metadata %>%
+  st_as_sf(coords = c("longitude_dd", "latitude_dd"), crs = 4326)
+
+rls_metadata_sf <- st_transform(rls_metadata_sf, st_crs(state.mp))
+rls_metadata_locs <- st_join(rls_metadata_sf, state.mp %>% st_cast("POLYGON")) %>%
+  dplyr::mutate(location = resname) %>%
+  glimpse()
+
+unique(rls_metadata_locs$location)
+
 # Create metrics for dashboard ----
 # Number of deployments ----
 number_of_deployments <- nrow(metadata)
@@ -338,21 +361,27 @@ rls_simple_metadata <- rls_metadata %>%
 
 # Deployment locations ----
 deployment_locations <- metadata %>%
-  distinct(sample_url, campaignid, sample, latitude_dd, longitude_dd, date_time, depth_m) %>%
+  distinct(sample_url, campaignid, sample, latitude_dd, longitude_dd, date_time, depth_m, location) %>%
   dplyr::mutate(year = as.numeric(str_sub(date_time, 1, 4))) %>%
   dplyr::mutate(popup = paste0(
     "<b>Campaign:</b> ", campaignid, "<br/>",
     "<b>Sample:</b> ", sample, "<br/>",
     "<b>Year:</b> ", year, "<br/>",
     "<b>Depth (m):</b> ", round(depth_m, 1))) %>%
-  dplyr::select(sample_url, depth_m, popup, longitude_dd, latitude_dd, year)
+  dplyr::select(sample_url, depth_m, popup, longitude_dd, latitude_dd, year) %>%
+  left_join(metadata_locs)
 
-deployment_locations = st_as_sf(deployment_locations, coords = c("longitude_dd", "latitude_dd"))
+deployment_locations <- st_as_sf(deployment_locations, coords = c("longitude_dd", "latitude_dd")) %>%
+  dplyr::mutate(
+    longitude_dd = sf::st_coordinates(.)[, 1],
+    latitude_dd  = sf::st_coordinates(.)[, 2]
+  ) %>% mutate(method = "stereo-BRUVs")
 
 names(deployment_locations)
 
 mean_lon <- mean(metadata$longitude_dd)
 mean_lat <- mean(metadata$latitude_dd)
+unique(deployment_locations$location)
 
 # Deployment locations RLS ----
 deployment_locations_rls <- rls_metadata %>%
@@ -364,14 +393,21 @@ deployment_locations_rls <- rls_metadata %>%
     "<b>Site name:</b> ", site_name, "<br/>",
     "<b>Year:</b> ", year, "<br/>",
     "<b>Depth (m):</b> ", round(depth_m, 1))) %>%
-  dplyr::select(survey_id, depth_m, popup, longitude_dd, latitude_dd, year)
+  dplyr::select(survey_id, depth_m, popup, longitude_dd, latitude_dd, year) %>%
+  left_join(rls_metadata_locs)
 
-deployment_locations_rls = st_as_sf(deployment_locations_rls, coords = c("longitude_dd", "latitude_dd"))
+deployment_locations_rls = st_as_sf(deployment_locations_rls, coords = c("longitude_dd", "latitude_dd")) %>%
+  dplyr::mutate(
+    longitude_dd = sf::st_coordinates(.)[, 1],
+    latitude_dd  = sf::st_coordinates(.)[, 2]
+  )%>% mutate(method = "UVC")
 
 names(deployment_locations_rls)
 
 mean_lon_rls <- mean(rls_metadata$longitude_dd)
 mean_lat_rls <- mean(rls_metadata$latitude_dd)
+
+unique(deployment_locations_rls$location)
 
 # Top 20 species ----
 top_species <- count %>%
@@ -403,6 +439,32 @@ names(top_species_rls)
 top_species_rls
 
 top_species_combined <- bind_rows(top_species, top_species_rls)
+
+top_species_bruvs_location <- count %>% 
+  left_join(metadata_locs) %>%
+  dplyr::group_by(location, family, genus, species) %>%
+  dplyr::summarise(total_number = sum(count)) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(location) %>%
+  dplyr::slice_max(order_by = total_number, n = 20) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(method = "stereo-BRUVs")
+
+top_species_rls_location <- rls_count %>%
+  dplyr::select(!location) %>%
+  left_join(rls_metadata_locs) %>%
+  dplyr::group_by(location, family, genus, species) %>%
+  dplyr::summarise(total_number = sum(count)) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(location) %>%
+  dplyr::slice_max(order_by = total_number, n = 20) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(method = "UVC")
+
+top_species_location <- bind_rows(top_species_bruvs_location, top_species_rls_location) %>%
+  dplyr::left_join(species_list) %>%
+  dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
+  dplyr::select(display_name, total_number, method, location) 
 
 # Top 200 species names ----
 top_species_names <- count %>%
@@ -441,26 +503,25 @@ top_species_names_combined <- bind_rows(top_species_bruv, top_species_rls) %>%
 
 # Bubble data ----
 bubble_data <- count %>%
-  dplyr::left_join(metadata) %>%
+  dplyr::left_join(metadata_locs) %>%
   dplyr::left_join(species_list) %>%
-  dplyr::select(sample_url, family, genus, species, count, australian_common_name) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  dplyr::select(sample_url, display_name, count) %>%
+  dplyr::select(sample_url, display_name, count, location) %>%
   dplyr::glimpse()
 
 bubble_data_rls <- rls_count %>%
-  dplyr::left_join(rls_metadata) %>%
+  dplyr::select(-c(location )) %>%
+  dplyr::left_join(rls_metadata_locs) %>%
   dplyr::left_join(species_list) %>%
-  dplyr::select(survey_id, family, genus, species, count, australian_common_name) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
-  dplyr::select(survey_id, display_name, count) %>%
+  dplyr::select(survey_id, display_name, count, location) %>%
   dplyr::glimpse()
 
 # Total abundance and species richness bubble data ----
 metric_bubble_data <- count %>%
   dplyr::left_join(metadata) %>%
   dplyr::left_join(species_list) %>%
-  dplyr::select(sample_url, family, genus, species, count, longitude_dd, latitude_dd, date_time, depth_m, status, successful_count, australian_common_name) %>%
+  dplyr::select(sample_url, family, genus, species, count, longitude_dd, latitude_dd, date_time, depth_m, status, successful_count, australian_common_name, location) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
   dplyr::group_by(sample_url) %>%
   dplyr::summarise(total_abundance = sum(count, na.rm = TRUE),
@@ -469,9 +530,10 @@ metric_bubble_data <- count %>%
   replace_na(list(total_abundance = 0, species_richness = 0)) %>%
   dplyr::select(sample_url, total_abundance, species_richness) %>%
   pivot_longer(!c(sample_url), names_to = "metric", values_to = "value") %>%
-  dplyr::left_join(metadata) %>%
+  dplyr::left_join(metadata_locs) %>%
+  left_join(metadata %>% select(!location)) %>%
   dplyr::ungroup() %>%
-  dplyr::select(sample_url, metric, value, longitude_dd, latitude_dd) %>%
+  dplyr::select(sample_url, metric, value, longitude_dd, latitude_dd, location) %>%
   glimpse()
 
 # Total abundance and species richness bubble data RLS----
@@ -490,6 +552,8 @@ metric_bubble_data_rls <- rls_count %>%
   dplyr::left_join(rls_metadata) %>%
   dplyr::ungroup() %>%
   dplyr::select(survey_id, metric, value, longitude_dd, latitude_dd) %>%
+  left_join(rls_metadata_locs) %>%
+  dplyr::select(survey_id, metric, value, longitude_dd, latitude_dd, location) %>% 
   glimpse()
 
 # Fishes of Australia codes ----
@@ -526,8 +590,6 @@ rls_metadata_sf <- rls_metadata %>%
 
 rls_metadata_sf <- st_transform(rls_metadata_sf, st_crs(state.mp))
 
-sf_use_s2(FALSE)
-
 metadata_with_status <- st_join(rls_metadata_sf, state.mp %>% st_cast("POLYGON")) %>%
   dplyr::mutate(status = case_when(
     zone_type %in% c("SZ", "RAZ_L") ~ "No-Take",
@@ -547,20 +609,24 @@ format_rls_length <- rls_length %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
   dplyr::select(sample_url, display_name, count, length_mm, longitude_dd, latitude_dd) %>%
   dplyr::mutate(method = "UVC") %>%
-  left_join(metadata_with_status)# TODO add status,  
+  left_join(metadata_with_status %>% dplyr::select(sample_url, status)) %>%
+  left_join(rls_metadata_locs %>% 
+              dplyr::select(survey_id, location) %>% 
+              distinct() %>% 
+              dplyr::mutate(sample_url = as.character(survey_id)))
+
+names(format_rls_length)
 
 length_combined <- length %>%
   dplyr::left_join(species_list) %>%
   dplyr::mutate(display_name = paste0(genus, " ", species, " (", australian_common_name, ")")) %>%
   left_join(metadata %>% dplyr::select(sample_url, sample, campaignid, status, longitude_dd, latitude_dd)) %>%
-  dplyr::select(sample_url, display_name, count, length_mm, status, longitude_dd, latitude_dd) %>%
   dplyr::mutate(method = "stereo-BRUVs") %>%
+  left_join(metadata_locs) %>%
+  dplyr::select(sample_url, display_name, count, length_mm, status, longitude_dd, latitude_dd, method, location) %>%
   bind_rows(format_rls_length)
 
-test <- length_combined %>% filter(is.na(latitude_dd))
-
-
-
+# test <- length_combined %>% filter(is.na(latitude_dd))
 
 # Add state and zones to length data for histograms -----
 coastal_waters <- st_read("data/spatial/Coastal_Waters_areas_(AMB2020).shp")
@@ -575,9 +641,9 @@ length_with_jurisdiction <- st_join(length_sf, coastal_waters %>% select(catlim)
   rename(jurisdiction = catlim) %>%
   replace_na(list(jurisdiction = "Federal Waters"))
 
-unique(length_with_jurisdiction$jurisdiction)
+# unique(length_with_jurisdiction$jurisdiction)
 
-names(length_with_jurisdiction)
+# names(length_with_jurisdiction)
 
 # Plots ----
 date_hist <- simple_metadata |>
@@ -641,9 +707,27 @@ date_hist_combined <- bind_rows(bruv_years, rls_years)|>
 
 date_hist_combined
 
+# Park dataframes ----
+bruv_years_park <- metadata_locs |>
+  mutate(year = as.numeric(format(date_time, "%Y"))) |>
+  dplyr::group_by(year, location) %>%
+  dplyr::summarise(n = n()) %>%
+  ungroup() %>%
+  mutate(method = "stereo-BRUVs")
+
+rls_years_park <- rls_metadata_locs |>
+  dplyr::mutate(year = as.numeric(str_sub(survey_date, 1, 4))) %>%
+  dplyr::group_by(year, location) %>%
+  dplyr::summarise(n = n()) %>%
+  ungroup() %>%
+  mutate(method = "UVC")
+
+years_park <- bind_rows(bruv_years_park, rls_years_park)
+
 # Combined depth plots ----
-depth_combined <- bind_rows(simple_metadata %>% mutate(method = "stereo-BRUVs"), 
-                            rls_simple_metadata %>% mutate(method = "UVC"))
+depth_combined <- bind_rows(metadata_locs %>% mutate(method = "stereo-BRUVs"), 
+                            rls_metadata_locs %>% mutate(method = "UVC")) %>% 
+  dplyr::select(depth_m, method, location)
 
 depth_hist_combined <- ggplot(depth_combined, aes(x = depth_m, fill = method)) +
   geom_histogram(binwidth = 5, color = "black") +
@@ -653,9 +737,6 @@ depth_hist_combined <- ggplot(depth_combined, aes(x = depth_m, fill = method)) +
   ggplot_theme
 
 depth_hist_combined
-
-
-
 
 # Create final dataframes and save ----
 values <- structure(
@@ -697,18 +778,20 @@ dataframes <- structure(
   list(
     top_species = top_species,
     top_species_combined = top_species_combined,
+    top_species_location = top_species_location,
     deployment_locations = deployment_locations,
     metric_bubble_data = metric_bubble_data,
     bubble_data = bubble_data,
     foa_codes = foa_codes,
     length_with_jurisdiction = length_with_jurisdiction,
     simple_metadata = simple_metadata,
-    
+    depth_combined = depth_combined,
     
     deployment_locations_rls = deployment_locations_rls,
     metric_bubble_data_rls = metric_bubble_data_rls,
     bubble_data_rls = bubble_data_rls,
-    rls_simple_metadata = rls_simple_metadata
+    rls_simple_metadata = rls_simple_metadata,
+    years_park = years_park
     # length_with_jurisdiction = length_with_jurisdiction,
   ),
   class = "data"

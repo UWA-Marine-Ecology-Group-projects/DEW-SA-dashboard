@@ -19,11 +19,10 @@ base_map <- function(max_zoom = 11, current_zoom = 6) {
       data = commonwealth.mp,         # or common.mp_s if simplified
       color = "black", weight = 1,
       fillColor = ~commonwealth.pal(zone), fillOpacity = 0.8,
-      group = "Australian Marine Parks",
       popup = ~ZoneName,
       options = pathOptions(pane = "polys")
     ) %>%
-    
+
     # Legends
     addLegend(
       pal = state.pal,
@@ -45,7 +44,7 @@ base_map <- function(max_zoom = 11, current_zoom = 6) {
       overlayGroups = c("Australian Marine Parks", "State Marine Parks", "Sampling locations"),
       options = layersControlOptions(collapsed = FALSE),
       position = "topright"
-    ) 
+    )
 }
 
 # viridis colours for depth using full domain for consistent legend
@@ -80,10 +79,10 @@ update_points_with_numeric_legend <- function(map_id, data, fill_cols, legend_pa
     )
 }
 
-add_bubble_legend <- function(map, max_val, title, layerId = "bubbleLegendSpecies") {
+add_bubble_legend <- function(map, max_val, title, layerId = "bubbleLegendSpecies", methodcol = "#f89f00") {
   leaflet::removeControl(map, layerId) %>%
     add_legend(
-      colors = c("white", "#f89f00", "#f89f00"),
+      colors = c("white", methodcol, methodcol),
       labels = c(0, round(max_val / 2), max_val),
       sizes  = c(5, 20, 40),
       title  = title,
@@ -92,11 +91,13 @@ add_bubble_legend <- function(map, max_val, title, layerId = "bubbleLegendSpecie
     )
 }
 
-filter_by_park <- function(df, park, park_col = "park") {
+filter_by_park <- function(df, park, park_col = "location") {
   if (is.null(park)) return(df)                    # statewide
   if (!park_col %in% names(df)) return(df)         # fallback if missing
   dplyr::filter(df, .data[[park_col]] %in% park)
 }
+
+
 
 # ------------------------------ server ---------------------------------------
 
@@ -145,8 +146,10 @@ server <- function(input, output, session) {
   
   # ---- deployments combined (bruv and rls points) -------------------------------------
   observe({
-    all_points <- bind_rows(dataframes$deployment_locations %>% mutate(method = "stereo-BRUVs"), 
-                            dataframes$deployment_locations_rls %>% mutate(method = "UVC"))
+    all_points <- bind_rows(dataframes$deployment_locations #%>% mutate(method = "stereo-BRUVs")
+                            , 
+                            dataframes$deployment_locations_rls #%>% mutate(method = "UVC")
+                            )
     # method → colour mapping
     method_cols <- c("stereo-BRUVs" = "#f89f00", "UVC" = "#0c3978")
     
@@ -238,7 +241,10 @@ server <- function(input, output, session) {
     
     map <- leafletProxy("species_map_rls") %>%
       clearGroup("Sampling locations") %>%
-      add_bubble_legend(max_val = max_ab, title = "Abundance", layerId = "bubbleLegendSpecies")
+      add_bubble_legend(max_val = max_ab, 
+                        title = "Abundance", 
+                        layerId = "bubbleLegendSpecies",
+                        methodcol = "#0c3978")
     
     if (nrow(overzero)) {
       overzero$radius <- 10 + (overzero$count / max_ab) * 50
@@ -246,7 +252,7 @@ server <- function(input, output, session) {
       map <- map %>%
         leafgl::addGlPoints(
           data = overzero,
-          fillColor = "#f89f00",
+          fillColor = "#0c3978",
           fillOpacity = 1,
           weight = 1,
           radius = overzero$radius,
@@ -352,7 +358,7 @@ server <- function(input, output, session) {
     
     map <- leafletProxy("assemblage_map_rls") %>%
       clearGroup("Sampling locations") %>%
-      add_bubble_legend(max_val = max_ab, title = input$assemblage)
+      add_bubble_legend(max_val = max_ab, title = input$assemblage, methodcol = "#0c3978")
     
     if (nrow(overzero)) {
       overzero$radius <- 10 + (overzero$value / max_ab) * 50
@@ -360,7 +366,7 @@ server <- function(input, output, session) {
       map <- map %>%
         leafgl::addGlPoints(
           data = overzero,
-          fillColor = "#f89f00",
+          fillColor = "#0c3978",
           fillOpacity = 1,
           weight = 1,
           radius = overzero$radius,
@@ -412,15 +418,19 @@ server <- function(input, output, session) {
     
     ggplot2::ggplot(data, aes(
       x = reorder_within(label, total_number, method),
-      y = total_number
+      y = total_number,
+      fill = method
     )) +
-      geom_bar(stat = "identity", fill = "#0c3978", col = "black") +
+      geom_bar(stat = "identity", 
+               # fill = "#0c3978", 
+               col = "black") +
       coord_flip() +
       xlab("Species") +
       ylab("Overall abundance") +
       scale_y_continuous(expand = expansion(mult = c(0, .1))) +
       scale_x_reordered() +
       ggplot_theme +
+      scale_fill_manual(values = c("stereo-BRUVs" = "#f89f00", "UVC" = "#0c3978")) +
       theme(axis.text.y = ggtext::element_markdown(size = 12)) +
       facet_wrap(vars(method), scales = "free")
   })
@@ -445,7 +455,7 @@ server <- function(input, output, session) {
       geom_histogram(binwidth = input$binwidth, #fill = "#0c3978", 
                      color = "black") +
       facet_grid(status ~ jurisdiction, scales = "free_y") +
-      scale_fill_manual(values = c("#f89f00", "#0c3978")) +
+      scale_fill_manual(values = c("stereo-BRUVs" = "#f89f00", "UVC" = "#0c3978")) +
       ggplot_theme +
       labs(
         x = "Length (mm)",
@@ -463,7 +473,7 @@ server <- function(input, output, session) {
                      color = "black", position = "identity") +
       facet_grid(status ~ jurisdiction, scales = "free_y") +
       labs(x = "Length (mm)", y = "Proportion (Density)") +
-      scale_fill_manual(values = c("#f89f00", "#0c3978")) +
+      scale_fill_manual(values = c("stereo-BRUVs" = "#f89f00", "UVC" = "#0c3978")) +
       ggplot_theme
   })
   
@@ -474,5 +484,32 @@ server <- function(input, output, session) {
   output$date_hist_rls       <- renderPlot({ plots$date_hist_rls })
   output$date_hist_combined  <- renderPlot({ plots$date_hist_combined })
   output$depth_hist_combined <- renderPlot({ plots$depth_hist_combined })
+  
+  
+  # same vector of parks as UI
+  # parks <- sort(unique(dataframes$deployment_locations$location))
+  
+  # lapply(parks, function(pk) {
+  #   mod_park_summary_server(
+  #     id = paste0("park_", gsub("[^A-Za-z0-9]+", "_", pk)),
+  #     park_name = pk,
+  #     dataframes = dataframes,
+  #     values = values,
+  #     plots = plots
+  #   )
+  # })
+  # 
+  # ONE instance of the module, driven by the sidebar selector
+ 
+  # lapply(parks, function(pk) {
+  mod_park_summary_server(
+    id = "one_park",
+    park_r = reactive(input$park_select),
+    dataframes = dataframes,
+    values = values,
+    plots = plots
+  )
+  # })
+  
 
 }
