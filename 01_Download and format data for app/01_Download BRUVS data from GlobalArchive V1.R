@@ -54,9 +54,9 @@ source("https://raw.githubusercontent.com/UWAMEGFisheries/GlobalArchive/master/v
 
 # An API token allows R to communicate with GlobalArchive
 # Add your personal API user token ----
-API_USER_TOKEN <- "993ba5c4267b9f8cd21de73b0434c95bc72f518a4f6e725226986022"
-# API_USER_TOKEN <- Sys.getenv("API_USER_TOKEN")
-# if (API_USER_TOKEN == "") stop("API_USER_TOKEN is missing (set as GitHub repo secret).")
+
+API_USER_TOKEN <- Sys.getenv("API_USER_TOKEN")
+if (API_USER_TOKEN == "") stop("API_USER_TOKEN is missing (set as GitHub repo secret).")
 
 ## Download data ----
 # takes 6 minutes to run - turn on again to refresh the data
