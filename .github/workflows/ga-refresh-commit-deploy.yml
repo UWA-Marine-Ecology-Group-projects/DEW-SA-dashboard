@@ -1,0 +1,83 @@
+name: GA refresh (commit data) + deploy
+
+on:
+  schedule:
+    # GitHub schedules are UTC. 16:30 UTC == 00:30 Adelaide (ACDT, UTC+10:30)
+    # If you're on AEST (UTC+9:30), adjust accordingly.
+    - cron: "30 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-commit-deploy:
+    runs-on: ubuntu-22.04
+
+    env:
+      # Avoid "~" in Actions; use an absolute path
+      RENV_PATHS_ROOT: /home/runner/.local/share/renv
+
+      API_USER_TOKEN: ${{ secrets.API_USER_TOKEN }}
+      GITHUB_PAT: ${{ secrets.GH_PAT }}
+
+      SHINYAPPS_ACCOUNT: ${{ secrets.SHINYAPPS_ACCOUNT }}
+      SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+      SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.4.2"
+
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake libnode-dev libx11-dev pandoc \
+            libgdal-dev gdal-bin libgeos-dev libproj-dev proj-data proj-bin \
+            libudunits2-dev libcurl4-openssl-dev libssl-dev libxml2-dev libpng-dev \
+            pkg-config libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
+
+      - uses: r-lib/actions/setup-renv@v2
+        env:
+          GITHUB_PAT: ${{ secrets.GH_PAT }}
+
+      - name: Update GA data cache
+        run: |
+          date
+          time Rscript scripts/update_ga_data.R
+          date
+          
+# Detect changes in app_data/ or state/ and expose as an output
+      - name: Detect changes
+        id: changes
+        shell: bash
+        run: |
+          echo "Git status:"
+          git status --porcelain || true
+
+          if git status --porcelain | awk '{print $2}' | grep -qE '^(app_data/|state/)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected in app_data/ or state/."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes detected in app_data/ or state/."
+          fi
+
+      - name: Commit updated data (if changed)
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app_data state
+          git commit -m "Update GA cache [skip ci]"
+          git push
+
+      - name: Deploy (only if cache changed)
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          Rscript scripts/deploy.R
+          
