@@ -36,6 +36,9 @@ load("app_data/dataframes.Rdata")
 load("app_data/plots.Rdata")
 load("app_data/hab_data.Rdata")
 
+# List of campaigns ----
+campaigns <- unique((hab_data$hab_combined_metadata)$campaignid) %>% sort()
+
 # ---- global constants (one-off dashboard values) ----
 sites_planned    <- sum(hab_data$survey_plan$planned_number_sites)
 sites_completed  <- sum(hab_data$survey_plan$complete_number_sites)

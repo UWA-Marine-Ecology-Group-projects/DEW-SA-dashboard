@@ -766,6 +766,16 @@ nav_panel(
 
 nav_spacer(),
 
+
+nav_panel(
+  "Admin",
+  
+  h3("Campaigns included"),
+  
+  tableOutput("campaigns_table")
+  
+),
+
 nav_item(
   tags$div(
     style = "display:flex; gap:10px; align-items:center; padding-right:15px;",

@@ -4223,5 +4223,17 @@ server <- function(input, output, session) {
   #   bindEvent(input$region, input$trophic_stack_scale)
   # 
   
+  # server.R
+  campaign_table <- reactive({
+    data.frame(
+      No = seq_along(campaigns),
+      Campaign = campaigns
+    )
+  })
+  
+  output$campaigns_table <- renderTable({
+    campaign_table()
+  })
+  
   
 }
